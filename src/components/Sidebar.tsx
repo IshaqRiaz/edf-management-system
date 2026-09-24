@@ -65,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'import' as NavTab,
-      label: 'Import Excel File',
+      label: 'Import & Text Table',
       icon: FileUp,
       highlight: true,
       badge: 'Auto-Extract',

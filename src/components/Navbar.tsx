@@ -236,13 +236,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Import Excel Button */}
+        {/* Import Table / Excel Button */}
         <button
           onClick={onOpenImport}
+          title="Upload or Paste Text Table / Excel Requisition"
           className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 hover:scale-105 active:scale-95 transition-all"
         >
           <Upload className="w-3.5 h-3.5" />
-          <span>Upload Excel</span>
+          <span>Import Table / Excel</span>
         </button>
 
         {/* Create EDF Button in Grapefruit Theme */}

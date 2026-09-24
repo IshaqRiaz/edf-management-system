@@ -280,16 +280,53 @@ export function exportEdfsToExcel(edfsList: EDF[], title = 'EDF_Material_Request
 }
 
 /**
- * Export EDF records list to a standard CSV file for external spreadsheet analysis.
+ * Options for reporting CSV exports
  */
-export function exportEdfsToCsv(edfsList: EDF[], filename = 'EDF_Material_Requests_Export.csv') {
+export interface CsvReportOptions {
+  filterCategory?: string;
+  filterStatus?: string;
+  searchTerm?: string;
+  exportedBy?: string;
+}
+
+/**
+ * Calculates human-readable schedule compliance for reporting.
+ */
+function getScheduleCompliance(item: EDF): string {
+  if (item.status === 'Completed') return 'Completed / Fulfilled';
+  if (item.status === 'Received') return 'Materials Received';
+  const reqTime = new Date(item.requiredDate).getTime();
+  if (isNaN(reqTime)) return item.status;
+  const diff = reqTime - Date.now();
+  if (diff < 0) {
+    const overdueDays = Math.max(1, Math.ceil(Math.abs(diff) / (1000 * 60 * 60 * 24)));
+    return `OVERDUE (${overdueDays} day${overdueDays > 1 ? 's' : ''} past due)`;
+  }
+  if (diff <= 24 * 60 * 60 * 1000) {
+    const hours = Math.max(1, Math.round(diff / (1000 * 60 * 60)));
+    return `DUE SOON (~${hours} hr${hours > 1 ? 's' : ''} remaining)`;
+  }
+  const days = Math.round(diff / (1000 * 60 * 60 * 24));
+  return `On Schedule (${days} day${days > 1 ? 's' : ''} remaining)`;
+}
+
+/**
+ * Export EDF records list to a standard CSV file for reporting and external spreadsheet analysis.
+ */
+export function exportEdfsToCsv(
+  edfsList: EDF[],
+  filename = 'EDF_Material_Requests_Export.csv',
+  reportOptions?: CsvReportOptions
+) {
   const headers = [
     '#',
     'EDF Number',
+    'Status',
+    'Schedule Compliance',
+    'Priority',
     'Category / Department',
     'Requesting Team',
-    'Status',
-    'Priority',
+    'Requester / Submitted By',
     'Request Date',
     'Required Date',
     'Expected / Delivery Date',
@@ -297,7 +334,7 @@ export function exportEdfsToCsv(edfsList: EDF[], filename = 'EDF_Material_Reques
     'Material Items Detail',
     'Work Scope / Request Description',
     'Remarks / Notes',
-    'Created By',
+    'Export Date',
   ];
 
   const escapeCsv = (val: unknown): string => {
@@ -306,35 +343,53 @@ export function exportEdfsToCsv(edfsList: EDF[], filename = 'EDF_Material_Reques
     return `"${str}"`;
   };
 
+  const exportDateStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
   const rows = edfsList.map((e, idx) => {
     const materialsSummary = (e.materials || [])
-      .map((m) => `${m.materialName} [Qty: ${m.quantity} ${m.unit}${m.description ? ` - ${m.description}` : ''}]`)
+      .map(
+        (m, mIdx) =>
+          `${mIdx + 1}. ${m.materialName} (Qty: ${m.quantity} ${m.unit}${
+            m.description ? ` | Spec: ${m.description}` : ''
+          })`
+      )
       .join('; ');
+
+    const compliance = getScheduleCompliance(e);
 
     return [
       idx + 1,
       e.edfNumber,
+      e.status,
+      compliance,
+      e.priority,
       e.categoryName,
       e.requestingTeam,
-      e.status,
-      e.priority,
+      e.createdBy || 'Office Coordinator',
       e.requestDate,
       e.requiredDate,
-      e.expectedDate || '',
+      e.expectedDate || '—',
       e.materialCount || (e.materials ? e.materials.length : 0),
       materialsSummary,
       e.requestDescription || '',
       e.remarks || '',
-      e.createdBy || '',
+      exportDateStr,
     ];
   });
 
-  const csvContent = [
-    headers.map(escapeCsv).join(','),
-    ...rows.map((row) => row.map(escapeCsv).join(',')),
-  ].join('\r\n');
+  const csvRows: string[] = [];
 
-  // Add UTF-8 BOM so spreadsheet applications (Excel, Google Sheets) parse UTF-8 characters correctly
+  // Add table headers
+  csvRows.push(headers.map(escapeCsv).join(','));
+
+  // Add data rows
+  for (const row of rows) {
+    csvRows.push(row.map(escapeCsv).join(','));
+  }
+
+  const csvContent = csvRows.join('\r\n');
+
+  // Add UTF-8 BOM (\uFEFF) so Excel, Google Sheets, and standard reporting tools recognize UTF-8 encoding
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

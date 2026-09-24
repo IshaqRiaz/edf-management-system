@@ -140,7 +140,7 @@ function MainAppContent() {
   }, [edfs]);
 
   // Create EDF Handler
-  const handleCreateEdf = async (formData: any) => {
+  const handleCreateEdf = async (formData: any, navigateToRecords = true): Promise<EDF> => {
     setIsSubmitting(true);
     try {
       const token = await getIdToken();
@@ -153,15 +153,26 @@ function MainAppContent() {
         body: JSON.stringify(formData),
       });
 
-      if (!res.ok) throw new Error('Failed to create EDF');
-      const created = await res.json();
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create EDF');
+      }
+      const created: EDF = await res.json();
 
-      addToast('success', 'EDF Requisition Created', `${created.edfNumber} was saved successfully.`);
+      addToast(
+        'success',
+        'EDF Requisition Created',
+        `${created.edfNumber} was saved successfully in "${created.categoryName}".`
+      );
       await fetchData();
-      setCurrentTab('records');
+      if (navigateToRecords) {
+        setCurrentTab('records');
+      }
+      return created;
     } catch (err: any) {
       console.error(err);
       addToast('error', 'Failed to create EDF', err.message || 'Please check fields and try again.');
+      throw err;
     } finally {
       setIsSubmitting(false);
     }
@@ -436,6 +447,7 @@ function MainAppContent() {
               onDeleteEdf={handleDeleteEdf}
               onBulkUpdateStatus={handleBulkUpdateStatus}
               onBulkDelete={handleBulkDelete}
+              onToast={addToast}
             />
           )}
 
@@ -451,9 +463,14 @@ function MainAppContent() {
           {currentTab === 'import' && (
             <ImportEdf
               categories={categories}
-              onConfirmSave={handleCreateEdf}
+              onConfirmSave={(data) => handleCreateEdf(data, false)}
               onCancel={() => setCurrentTab('records')}
               isSaving={isSubmitting}
+              onViewEdf={(edf) => setSelectedEdf(edf)}
+              onNavigateToRecords={(cat) => {
+                if (cat) setRecordsCategoryFilter(cat);
+                setCurrentTab('records');
+              }}
             />
           )}
 

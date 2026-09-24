@@ -8,6 +8,7 @@ import { edfs, materials, categories, attachments, users, activities } from './s
 import { eq, desc, asc, sql, and, or, ilike } from 'drizzle-orm';
 import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
 import * as XLSX from 'xlsx';
+import { parseTextTable } from './src/utils/textTableUtils.ts';
 
 dotenv.config();
 
@@ -808,6 +809,22 @@ app.post('/api/extract-edf', requireAuth, async (req: AuthRequest, res) => {
       } catch (e) {
         console.warn('XLSX parsing failed, falling back to direct multimodal:', e);
       }
+    } else if (
+      fileContentBase64 &&
+      !documentText &&
+      (fileName?.endsWith('.txt') ||
+        fileName?.endsWith('.tsv') ||
+        fileName?.endsWith('.tab') ||
+        fileName?.endsWith('.tbl') ||
+        fileName?.endsWith('.md') ||
+        fileType?.startsWith('text/'))
+    ) {
+      // Decode plain text table files
+      try {
+        documentText = Buffer.from(fileContentBase64, 'base64').toString('utf-8');
+      } catch (e) {
+        console.warn('Text file decoding failed:', e);
+      }
     }
 
     // Fetch existing categories from DB so Gemini classifies accurately into active categories
@@ -946,11 +963,13 @@ Return strictly a valid JSON object matching the requested schema.`;
 
 // Rule based fallback extractor if API key is absent or offline
 function runRuleBasedExtractor(fileName: string, text: string, categoriesList: string[]) {
+  // Parse text table items first
+  const parsedTable = parseTextTable(text || '');
   const lower = (fileName + ' ' + text).toLowerCase();
 
-  let category = 'General / Other';
-  let reasoning = 'Classified as General / Other based on standard equipment demand.';
-  let confidence = 'Medium';
+  let category = parsedTable.suggestedCategory || 'General / Other';
+  let reasoning = parsedTable.categoryReasoning || 'Classified as General / Other based on standard equipment demand.';
+  let confidence: 'High' | 'Medium' | 'Low' = parsedTable.confidence || 'Medium';
 
   if (
     lower.includes('ac ') ||
@@ -1018,22 +1037,27 @@ function runRuleBasedExtractor(fileName: string, text: string, categoriesList: s
     .toISOString()
     .slice(0, 16);
 
+  const materials =
+    parsedTable.materials && parsedTable.materials.length > 0
+      ? parsedTable.materials
+      : [
+          { materialName: 'Primary Material Item #1', quantity: '10', unit: 'Pieces', description: 'Extracted item' },
+          { materialName: 'Connecting Accessories', quantity: '25', unit: 'Meters', description: 'Extracted item' },
+        ];
+
   return {
     edfNumber: `EDF-2026-${Math.floor(10000 + Math.random() * 90000)}`,
     category,
     confidence,
     categoryReasoning: reasoning,
-    requestDescription: `Material requisition extracted from ${fileName || 'uploaded document'}`,
-    requestingTeam: `${category} Technical Unit`,
+    requestDescription: parsedTable.suggestedDescription || `Material requisition extracted from ${fileName || 'uploaded document'}`,
+    requestingTeam: parsedTable.suggestedTeam || `${category} Technical Unit`,
     requestDate: today,
     requiredDate: required,
     expectedDate: today,
     priority: 'Normal',
     remarks: 'Auto-extracted from uploaded file. Please review quantities and units before saving.',
-    materials: [
-      { materialName: 'Primary Material Item #1', quantity: '10', unit: 'Pieces', description: 'Extracted item' },
-      { materialName: 'Connecting Accessories', quantity: '25', unit: 'Meters', description: 'Extracted item' },
-    ],
+    materials,
   };
 }
 

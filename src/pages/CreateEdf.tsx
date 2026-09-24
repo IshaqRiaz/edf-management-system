@@ -17,7 +17,7 @@ import { calculateRemainingTime } from '../utils/dateUtils.ts';
 interface CreateEdfProps {
   categories: Category[];
   onCancel: () => void;
-  onSubmit: (formData: any) => Promise<void>;
+  onSubmit: (formData: any) => Promise<any>;
   isSubmitting: boolean;
 }
 
