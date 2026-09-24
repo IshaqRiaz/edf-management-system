@@ -3,6 +3,7 @@
   "appId": "1:104959736729:web:aa2a244f35d72a1d9f3108",
   "apiKey": "AIzaSyAcJrhBHQDmE8r-3nAZ1wNdpt7iFTjqhTQ",
   "authDomain": "acoustic-yucca-3smzh.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-edfmaterialreque-16c20897-47b3-444b-8772-d9bf5bec980b",
   "storageBucket": "acoustic-yucca-3smzh.firebasestorage.app",
   "messagingSenderId": "104959736729",
   "measurementId": "",

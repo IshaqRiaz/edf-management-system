@@ -18,6 +18,9 @@ import {
   X,
   Loader2,
   CheckCheck,
+  User,
+  RotateCcw,
+  SearchX,
 } from 'lucide-react';
 import { EDF, EDFStatus } from '../types/index.ts';
 import { CountdownBadge } from '../components/CountdownBadge.tsx';
@@ -77,16 +80,43 @@ export const EdfList: React.FC<EdfListProps> = ({
         return false;
       }
 
-      // Search term
+      // Search term: keyword, requisition number, requester name, materials, remarks, team
       if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
+        const q = searchTerm.toLowerCase().trim();
+        // 1. Requisition number (e.g., EDF-2026-00101)
         const inNum = item.edfNumber?.toLowerCase().includes(q);
+        // 2. Requester name (e.g., Office Coordinator, user name)
+        const inRequester = item.createdBy?.toLowerCase().includes(q);
+        // 3. Category
         const inCat = item.categoryName?.toLowerCase().includes(q);
+        // 4. Requesting Team
         const inTeam = item.requestingTeam?.toLowerCase().includes(q);
+        // 5. Keyword in description or specification
         const inDesc = item.requestDescription?.toLowerCase().includes(q);
+        // 6. Remarks
         const inRemarks = item.remarks?.toLowerCase().includes(q);
-        const inMats = item.materials?.some((m) => m.materialName?.toLowerCase().includes(q));
-        if (!inNum && !inCat && !inTeam && !inDesc && !inRemarks && !inMats) {
+        // 7. Priority or status keyword
+        const inPriority = item.priority?.toLowerCase().includes(q);
+        const inStatus = item.status?.toLowerCase().includes(q);
+        // 8. Material item names, descriptions, or units
+        const inMats = item.materials?.some(
+          (m) =>
+            m.materialName?.toLowerCase().includes(q) ||
+            m.description?.toLowerCase().includes(q) ||
+            m.unit?.toLowerCase().includes(q)
+        );
+
+        if (
+          !inNum &&
+          !inRequester &&
+          !inCat &&
+          !inTeam &&
+          !inDesc &&
+          !inRemarks &&
+          !inPriority &&
+          !inStatus &&
+          !inMats
+        ) {
           return false;
         }
       }
@@ -255,18 +285,30 @@ export const EdfList: React.FC<EdfListProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+      <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3.5">
         <div className="flex flex-col md:flex-row gap-3">
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          {/* Enhanced Search Input Bar */}
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#FF5A5F] transition-colors pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by EDF #, material item, team name, specification, or remarks..."
-              className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-sky-500 focus:bg-white dark:focus:bg-slate-800 transition-all"
+              placeholder="Search by keyword, requisition number (e.g. EDF-001), or requester name..."
+              aria-label="Search records by keyword, requisition number, or requester name"
+              className="w-full pl-9 pr-9 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/60 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#FF5A5F]/50 focus:border-[#FF5A5F] focus:bg-white dark:focus:bg-slate-800 transition-all shadow-2xs"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                title="Clear search"
+                aria-label="Clear search query"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Category Filter */}
@@ -274,7 +316,7 @@ export const EdfList: React.FC<EdfListProps> = ({
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+              className="px-3 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-[#FF5A5F]/50 cursor-pointer"
             >
               <option value="All">All Categories</option>
               {categories.map((c) => (
@@ -288,7 +330,7 @@ export const EdfList: React.FC<EdfListProps> = ({
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-sky-500"
+              className="px-3 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-[#FF5A5F]/50 cursor-pointer"
             >
               <option value="All">All Statuses</option>
               <option value="Pending">Pending</option>
@@ -303,11 +345,42 @@ export const EdfList: React.FC<EdfListProps> = ({
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
               title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
-              className="px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+              className="px-3 py-2.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors font-medium whitespace-nowrap cursor-pointer"
             >
               {sortOrder === 'asc' ? 'Earliest Due' : 'Latest Due'}
             </button>
           </div>
+        </div>
+
+        {/* Search Scope Helper & Results Feedback */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+            <span className="font-semibold uppercase tracking-wider text-[10px] text-slate-400">Filter Scope:</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">
+              Requisition #
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">
+              <User className="w-2.5 h-2.5 text-slate-400" />
+              Requester Name
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">
+              Keywords & Materials
+            </span>
+          </div>
+
+          {searchTerm.trim() && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-500 dark:text-slate-400">
+                Found <strong className="text-slate-900 dark:text-white font-bold">{filteredEdfs.length}</strong> matching records for &ldquo;<span className="text-slate-800 dark:text-slate-200 font-semibold">{searchTerm}</span>&rdquo;
+              </span>
+              <button
+                onClick={() => setSearchTerm('')}
+                className="text-xs font-semibold text-[#FF5A5F] hover:underline cursor-pointer ml-1"
+              >
+                Clear search
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Quick Filter Pills */}
@@ -317,9 +390,9 @@ export const EdfList: React.FC<EdfListProps> = ({
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 selectedCategory === cat
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-gradient-to-r from-[#FF5A5F] to-[#FF8E53] text-white shadow-xs font-semibold'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
@@ -407,7 +480,7 @@ export const EdfList: React.FC<EdfListProps> = ({
                 <th className="py-3 px-3.5">EDF Number</th>
                 <th className="py-3 px-3.5">Category</th>
                 <th className="py-3 px-3.5">Material Summary & Items</th>
-                <th className="py-3 px-3.5">Requesting Team</th>
+                <th className="py-3 px-3.5">Requester & Team</th>
                 <th className="py-3 px-3.5">Request Date</th>
                 <th className="py-3 px-3.5">Required Date</th>
                 <th className="py-3 px-3.5">Live Timer / Overdue</th>
@@ -418,8 +491,37 @@ export const EdfList: React.FC<EdfListProps> = ({
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredEdfs.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400 text-sm">
-                    No EDF records found matching your filters.
+                  <td colSpan={10} className="py-14 text-center">
+                    <div className="max-w-md mx-auto flex flex-col items-center justify-center space-y-3 px-4">
+                      <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/40 flex items-center justify-center text-[#FF5A5F] shadow-2xs">
+                        <SearchX className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                          {searchTerm.trim()
+                            ? `No requisitions found matching "${searchTerm}"`
+                            : 'No EDF records found'}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                          {searchTerm.trim()
+                            ? 'Check for typos or try searching by requisition number (e.g. EDF-001), requester name, or material keywords.'
+                            : 'No records match the selected category and status filters.'}
+                        </p>
+                      </div>
+                      {(searchTerm.trim() || selectedCategory !== 'All' || selectedStatus !== 'All') && (
+                        <button
+                          onClick={() => {
+                            setSearchTerm('');
+                            setSelectedCategory('All');
+                            setSelectedStatus('All');
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-[#FF5A5F]" />
+                          <span>Reset Search & Filters</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -495,9 +597,18 @@ export const EdfList: React.FC<EdfListProps> = ({
                         </div>
                       </td>
 
-                      {/* Requesting Team */}
-                      <td className="py-3.5 px-3.5 text-slate-700 dark:text-slate-300 max-w-[130px] truncate">
-                        {edf.requestingTeam}
+                      {/* Requester & Team */}
+                      <td className="py-3.5 px-3.5 max-w-[150px]">
+                        <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                          {edf.requestingTeam}
+                        </div>
+                        <div
+                          className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1 mt-0.5"
+                          title={`Requester: ${edf.createdBy || 'Office Coordinator'}`}
+                        >
+                          <User className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{edf.createdBy || 'Office Coordinator'}</span>
+                        </div>
                       </td>
 
                       {/* Request Date */}

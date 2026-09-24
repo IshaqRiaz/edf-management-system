@@ -238,6 +238,7 @@ app.get('/api/edfs', async (req, res) => {
       const q = String(search).toLowerCase().trim();
       results = results.filter((e) => {
         const inNum = e.edfNumber?.toLowerCase().includes(q);
+        const inRequester = e.createdBy?.toLowerCase().includes(q);
         const inCat = e.categoryName?.toLowerCase().includes(q);
         const inTeam = e.requestingTeam?.toLowerCase().includes(q);
         const inDesc = e.requestDescription?.toLowerCase().includes(q);
@@ -245,7 +246,7 @@ app.get('/api/edfs', async (req, res) => {
         const inMats = e.materials.some((m: any) =>
           m.materialName?.toLowerCase().includes(q)
         );
-        return inNum || inCat || inTeam || inDesc || inRemarks || inMats;
+        return inNum || inRequester || inCat || inTeam || inDesc || inRemarks || inMats;
       });
     }
 
@@ -1040,8 +1041,6 @@ function runRuleBasedExtractor(fileName: string, text: string, categoriesList: s
 // VITE MIDDLEWARE OR STATIC SERVING
 // -------------------------------------------------------------
 async function setupVite() {
-  await seedInitialActivities();
-
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -1058,6 +1057,9 @@ async function setupVite() {
 
   app.listen(PORT, () => {
     console.log(`EDF Management Server running on port ${PORT}`);
+    seedInitialActivities().catch((err) => {
+      console.error('Error seeding initial activities in background:', err);
+    });
   });
 }
 

@@ -59,8 +59,8 @@ function MainAppContent() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Fetch all core data
-  const fetchData = useCallback(async (quiet = false) => {
+  // Fetch all core data with retry resilience
+  const fetchData = useCallback(async (quiet = false, retryCount = 0) => {
     if (!quiet) setIsRefreshing(true);
     try {
       const token = await getIdToken();
@@ -94,7 +94,14 @@ function MainAppContent() {
         setActivities(actData);
       }
     } catch (err) {
-      console.error('Failed to load EDF system data:', err);
+      if (retryCount < 3) {
+        const delay = (retryCount + 1) * 700;
+        setTimeout(() => {
+          fetchData(quiet, retryCount + 1);
+        }, delay);
+        return;
+      }
+      console.warn('Temporary connection issue fetching EDF system data (will auto-refresh):', err);
     } finally {
       if (!quiet) setIsRefreshing(false);
     }
