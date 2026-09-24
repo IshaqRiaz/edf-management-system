@@ -1,0 +1,7 @@
+{
+  "name": "EDF & Material Request Management System",
+  "description": "Professional material demand form tracking, live required-date countdown, automatic overdue detection, smart document extraction, and PDF generation for office coordinators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
