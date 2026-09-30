@@ -1,0 +1,8 @@
+{
+  "name": "EDF Management System",
+  "description": "Employee Demand Form (EDF) Management System for Office Coordinators and Administrators with live countdown timers, Excel import, and real-time tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
