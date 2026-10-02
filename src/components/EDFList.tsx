@@ -170,30 +170,30 @@ export const EDFList: React.FC<EDFListProps> = ({
     switch (s) {
       case 'Completed':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 whitespace-nowrap">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 whitespace-nowrap">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Completed</span>
           </span>
         );
       case 'Received':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 whitespace-nowrap">
-            <PackageCheck className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 whitespace-nowrap">
+            <PackageCheck className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
             <span>Received</span>
           </span>
         );
       case 'Overdue':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-300 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800 animate-pulse whitespace-nowrap">
-            <AlertOctagon className="w-3 h-3 text-red-600 dark:text-red-400" />
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-300 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800 animate-pulse whitespace-nowrap">
+            <AlertOctagon className="w-3 h-3 text-red-600 dark:text-red-400 shrink-0" />
             <span>Overdue</span>
           </span>
         );
       case 'Pending':
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 whitespace-nowrap">
-            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 whitespace-nowrap">
+            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>Pending</span>
           </span>
         );
@@ -204,7 +204,7 @@ export const EDFList: React.FC<EDFListProps> = ({
     if (isHighPriorityAuto || priority === 'High') {
       return (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-950/90 dark:text-red-300 border border-red-300 dark:border-red-800 shadow-2xs whitespace-nowrap"
+          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-black tracking-wide bg-red-100 text-red-700 dark:bg-red-950/90 dark:text-red-300 border border-red-300 dark:border-red-800 shadow-2xs whitespace-nowrap"
           title="High Priority: Required date is within 24 hours"
         >
           <AlertTriangle className="w-3 h-3 text-red-600 dark:text-red-400 fill-red-500/20 shrink-0" />
@@ -214,13 +214,13 @@ export const EDFList: React.FC<EDFListProps> = ({
     }
     if (priority === 'Low') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 whitespace-nowrap">
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 whitespace-nowrap">
           Low
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 whitespace-nowrap">
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 whitespace-nowrap">
         Medium
       </span>
     );
@@ -469,14 +469,14 @@ export const EDFList: React.FC<EDFListProps> = ({
       )}
 
       {/* Main EDF Data View: Responsive Desktop Table + Mobile Cards */}
-      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div className="w-full min-w-0 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         {/* DESKTOP & TABLET TABLE VIEW (hidden on mobile <768px) */}
-        <div className="hidden md:block overflow-x-auto">
+        <div className="hidden md:block w-full min-w-0 overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-950/60 text-slate-500 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-950/60 text-slate-500 dark:text-slate-400 text-[11px] font-bold tracking-wide">
                 {isAdmin && (
-                  <th className="py-3 px-3 w-10 text-center">
+                  <th className="py-2.5 px-2 w-8 text-center">
                     <button
                       onClick={handleSelectAll}
                       className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
@@ -490,21 +490,21 @@ export const EDFList: React.FC<EDFListProps> = ({
                     </button>
                   </th>
                 )}
-                {/* 1. EDF Number */}
-                <th className="py-3 px-3 min-w-[130px]">1. EDF Number</th>
+                {/* 1. Edf Number */}
+                <th className="py-2.5 px-2.5 min-w-[110px]">1. Edf Number</th>
                 {/* 2. Remarks & Notes */}
-                <th className="py-3 px-3 min-w-[150px]">2. Remarks & Notes</th>
+                <th className="py-2.5 px-2.5 min-w-[130px]">2. Remarks & Notes</th>
                 {/* 3. Material Summary */}
-                <th className="py-3 px-3 min-w-[190px]">3. Material Summary</th>
-                {/* 4. Remaining existing categories/details (Compact Priority, Live Timer, Status) */}
-                <th className="py-3 px-2 text-center w-24">Priority</th>
-                <th className="py-3 px-2 text-center w-36">Live Timer</th>
-                <th className="py-3 px-2 text-center w-28">Status</th>
-                <th className="py-3 px-3">Category</th>
-                <th className="py-3 px-3">Requester</th>
-                <th className="py-3 px-3">Issue Date</th>
-                <th className="py-3 px-3">Required Date</th>
-                <th className="py-3 px-3 text-right">Actions</th>
+                <th className="py-2.5 px-2.5 min-w-[170px]">3. Material Summary</th>
+                {/* 4. Compact Priority, Live Timer, Status */}
+                <th className="py-2 px-1 text-center w-16 text-xs font-semibold">Priority</th>
+                <th className="py-2 px-1 text-center w-24 text-xs font-semibold">Live Timer</th>
+                <th className="py-2 px-1 text-center w-18 text-xs font-semibold">Status</th>
+                <th className="py-2.5 px-2.5">Category</th>
+                <th className="py-2.5 px-2.5">Requester</th>
+                <th className="py-2.5 px-2.5">Request Date</th>
+                <th className="py-2.5 px-2.5">Required Date</th>
+                <th className="py-2.5 px-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
@@ -603,17 +603,17 @@ export const EDFList: React.FC<EDFListProps> = ({
                       </td>
 
                       {/* 4. Remaining: Compact Priority Level */}
-                      <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                      <td className="py-1.5 px-1 text-center whitespace-nowrap text-xs">
                         {getPriorityBadge(item.priority, isHighPriority)}
                       </td>
 
                       {/* 4. Remaining: Compact Live Timer */}
-                      <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                      <td className="py-1.5 px-1 text-center whitespace-nowrap text-xs">
                         <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
                       </td>
 
                       {/* 4. Remaining: Compact Status */}
-                      <td className="py-2.5 px-2 text-center whitespace-nowrap">
+                      <td className="py-1.5 px-1 text-center whitespace-nowrap text-xs">
                         {getStatusBadge(item.status, item.isOverdue)}
                       </td>
 
@@ -773,7 +773,7 @@ export const EDFList: React.FC<EDFListProps> = ({
 
                   {/* Row 2: Remarks & Notes */}
                   <div className="bg-slate-50/70 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-800 text-xs">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block mb-0.5">
                       2. Remarks & Notes
                     </span>
                     <p className="text-slate-700 dark:text-slate-300">
@@ -787,7 +787,7 @@ export const EDFList: React.FC<EDFListProps> = ({
 
                   {/* Row 3: Material Summary (Material -> Unit -> Quantity) */}
                   <div className="bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block mb-0.5">
                       3. Material Summary
                     </span>
                     <p className="font-semibold text-slate-900 dark:text-slate-100">
@@ -830,7 +830,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                   <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <button
                       onClick={() => onViewDetails(item)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 min-h-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5 text-slate-500" />
                       <span>View Details</span>
@@ -840,7 +840,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                     {item.status !== 'Received' && item.status !== 'Completed' && (
                       <button
                         onClick={() => onMarkStatus(item.id, 'Received')}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 min-h-[40px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
                       >
                         <PackageCheck className="w-3.5 h-3.5" />
                         <span>Mark Received</span>
@@ -851,7 +851,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                       <>
                         <button
                           onClick={() => onEdit(item)}
-                          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs cursor-pointer"
+                          className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs cursor-pointer"
                           title="Edit"
                         >
                           <Edit className="w-3.5 h-3.5" />
@@ -862,7 +862,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                               onDelete(item.id);
                             }
                           }}
-                          className="p-2 rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/40 text-red-600 text-xs cursor-pointer"
+                          className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl bg-red-50 hover:bg-red-100 dark:bg-red-950/40 text-red-600 text-xs cursor-pointer"
                           title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

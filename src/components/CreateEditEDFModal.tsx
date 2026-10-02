@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { EDF, Category, EDFItem, EDFPriority } from '../types.ts';
 import { X, Plus, Trash2, CheckCircle2, Sparkles, Clock, AlertTriangle } from 'lucide-react';
+import { RequesterDropdown } from './RequesterDropdown.tsx';
 
 interface CreateEditEDFModalProps {
   isOpen: boolean;
@@ -184,8 +185,8 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
           {/* Main Grid: EDF Number, Category, Requester */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                EDF Number
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Edf Number
               </label>
               <input
                 type="text"
@@ -197,7 +198,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Category *
               </label>
               <select
@@ -213,16 +214,14 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <div className="min-w-0">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Requester Name *
               </label>
-              <input
-                type="text"
+              <RequesterDropdown
                 value={requesterName}
-                onChange={(e) => setRequesterName(e.target.value)}
-                placeholder="e.g. Engr. Sarah"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onChange={(val) => setRequesterName(val)}
+                placeholder="Select or enter requester..."
                 required
               />
             </div>
@@ -231,7 +230,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
           {/* Dates, Priority & Status Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Issue Date *
               </label>
               <input
@@ -244,7 +243,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Required Date *
               </label>
               <input
@@ -257,7 +256,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Priority Level *
               </label>
               <select
@@ -272,7 +271,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Status
               </label>
               <select
@@ -291,7 +290,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
           {/* Material Items List - Order: Material -> Unit -> Quantity */}
           <div className="pt-2">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Material List & Quantities *
               </label>
               <button
@@ -305,7 +304,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
             </div>
 
             {/* Column Header Guide */}
-            <div className="hidden sm:flex items-center gap-2 px-1 pb-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="hidden sm:flex items-center gap-2 px-1 pb-1 text-[11px] font-bold text-slate-400">
               <span className="flex-1">Material / Description</span>
               <span className="w-24">Unit</span>
               <span className="w-24">Quantity</span>
@@ -359,7 +358,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
 
           {/* Remarks */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               Remarks & Installation Notes
             </label>
             <textarea

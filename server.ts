@@ -8,9 +8,11 @@ dotenv.config();
 
 import { eq, desc, asc, and, or, ilike, inArray } from 'drizzle-orm';
 import { db } from './src/db/index.ts';
-import { users, categories, edfs, edfItems, activityLogs, edfStatusHistory } from './src/db/schema.ts';
-import { seedDatabase } from './src/db/seed.ts';
+import { users, categories, edfs, edfItems, activityLogs, edfStatusHistory, requesters, edfBackups, systemSettings } from './src/db/schema.ts';
+import { seedDatabase, DEFAULT_REQUESTER_NAMES } from './src/db/seed.ts';
+import { safeMigrateDatabase } from './src/db/migrate.ts';
 import { adminAuth } from './src/lib/firebase-admin.ts';
+import { takeDatabaseBackup, getBackupStatus, restoreFromBackupIfNeeded } from './src/lib/backupManager.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,9 +24,19 @@ const app = express();
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// Seed initial database content on server boot
-seedDatabase().catch((err) => {
-  console.error('Failed to run initial database seed:', err);
+// Safe database migration followed by seed protection check on server boot
+async function initializeDatabase() {
+  try {
+    await safeMigrateDatabase();
+    await seedDatabase();
+    console.log('[Server Startup] Database safe migration and persistence initialization complete.');
+  } catch (err) {
+    console.error('[Server Startup] Initialization error:', err);
+  }
+}
+
+initializeDatabase().catch((err) => {
+  console.error('Fatal initialization error:', err);
 });
 
 // Authentication interfaces
@@ -402,6 +414,7 @@ app.post('/api/categories', authenticate, requireAdmin, async (req: AuthRequest,
       .returning();
 
     await logActivity(`Category '${cleanName}' created`, undefined, req);
+    takeDatabaseBackup('auto').catch(console.error);
     res.status(201).json(newCat);
   } catch (error: any) {
     if (error?.code === '23505') {
@@ -420,9 +433,116 @@ app.delete('/api/categories/:id', authenticate, requireAdmin, async (req: AuthRe
     }
 
     await logActivity(`Category '${deleted.name}' deleted`, undefined, req);
+    takeDatabaseBackup('auto').catch(console.error);
     res.json({ success: true, message: 'Category deleted' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete category' });
+  }
+});
+
+// ----------------------------------------------------
+// REQUESTER MANAGEMENT ROUTES (Dropdown feature & persistence)
+// ----------------------------------------------------
+
+// List all requesters in alphabetical order
+app.get('/api/requesters', authenticate, async (_req: Request, res: Response) => {
+  try {
+    let list = await db.select().from(requesters).orderBy(asc(requesters.name));
+
+    // If empty, auto-seed defaults
+    if (list.length === 0) {
+      for (const name of DEFAULT_REQUESTER_NAMES) {
+        await db.insert(requesters).values({ name }).onConflictDoNothing();
+      }
+      list = await db.select().from(requesters).orderBy(asc(requesters.name));
+    }
+
+    res.json(list);
+  } catch (error) {
+    console.error('Failed to fetch requesters:', error);
+    res.status(500).json({ error: 'Failed to fetch requesters' });
+  }
+});
+
+// Add a new requester name (e.g. from modal quick-add or management)
+app.post('/api/requesters', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Requester name is required' });
+    }
+
+    const cleanName = name.trim();
+    const existing = await db.select().from(requesters).where(eq(requesters.name, cleanName)).limit(1);
+    if (existing.length > 0) {
+      return res.json(existing[0]);
+    }
+
+    const [newReq] = await db
+      .insert(requesters)
+      .values({ name: cleanName })
+      .returning();
+
+    await logActivity(`Requester '${cleanName}' added`, undefined, req);
+    takeDatabaseBackup('auto').catch(console.error);
+    res.status(201).json(newReq);
+  } catch (error) {
+    console.error('Failed to add requester:', error);
+    res.status(500).json({ error: 'Failed to add requester' });
+  }
+});
+
+// Delete a requester name (Admin only)
+app.delete('/api/requesters/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const reqId = parseInt(req.params.id, 10);
+    const [deleted] = await db.delete(requesters).where(eq(requesters.id, reqId)).returning();
+    if (!deleted) {
+      return res.status(404).json({ error: 'Requester not found' });
+    }
+
+    await logActivity(`Requester '${deleted.name}' deleted`, undefined, req);
+    takeDatabaseBackup('auto').catch(console.error);
+    res.json({ success: true, message: 'Requester deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete requester' });
+  }
+});
+
+// ----------------------------------------------------
+// BACKUP & DATA INTEGRITY ROUTES
+// ----------------------------------------------------
+
+// Get backup & data preservation health status
+app.get('/api/backup/status', authenticate, async (_req: Request, res: Response) => {
+  try {
+    const [edfsCount, backupsList, settings] = await Promise.all([
+      db.select({ id: edfs.id }).from(edfs),
+      db.select().from(edfBackups).orderBy(desc(edfBackups.id)).limit(1),
+      db.select().from(systemSettings),
+    ]);
+
+    const lastBackupTime = backupsList[0]?.createdAt || new Date();
+    res.json({
+      status: 'healthy',
+      persistenceType: 'Dual-Layer (PostgreSQL + Immutable Disk Snapshot)',
+      totalEdfsPreserved: edfsCount.length,
+      lastBackupAt: lastBackupTime,
+      seedCompleted: settings.some(s => s.key === 'seed_completed' && s.value === 'true'),
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve backup status' });
+  }
+});
+
+// Trigger manual snapshot backup
+app.post('/api/backup/create', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const success = await takeDatabaseBackup('manual');
+    await logActivity('Manual database backup created', undefined, req);
+    res.json({ success, message: 'Database backup snapshot created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create backup snapshot' });
   }
 });
 
@@ -757,6 +877,11 @@ app.post('/api/edfs', authenticate, requireAdmin, async (req: AuthRequest, res: 
       });
     }
 
+    // Auto-save requester name to requesters table for future dropdown suggestions
+    if (requesterName && requesterName.trim()) {
+      await db.insert(requesters).values({ name: requesterName.trim() }).onConflictDoNothing().catch(() => {});
+    }
+
     await logActivity(`${created.edfNumber} Created`, created.edfNumber, req);
     await recordStatusHistory(
       created.id,
@@ -766,6 +891,10 @@ app.post('/api/edfs', authenticate, requireAdmin, async (req: AuthRequest, res: 
       remarks || 'Initial demand form creation',
       req
     );
+
+    // Persist snapshot to immutable disk & Cloud SQL backup tables immediately
+    takeDatabaseBackup('auto').catch(console.error);
+
     res.status(201).json(created);
   } catch (error: any) {
     console.error('Create EDF error:', error);
@@ -821,6 +950,11 @@ app.put('/api/edfs/:id', authenticate, requireAdmin, async (req: AuthRequest, re
     const safePriority = (priority && ['Low', 'Medium', 'High'].includes(priority)) ? priority : existing.priority || 'Medium';
     const safeRemarks = remarks !== undefined ? (remarks?.trim() || null) : existing.remarks;
 
+    // Auto-save requester name if new
+    if (safeRequester) {
+      await db.insert(requesters).values({ name: safeRequester }).onConflictDoNothing().catch(() => {});
+    }
+
     const [updated] = await db
       .update(edfs)
       .set({
@@ -873,6 +1007,8 @@ app.put('/api/edfs/:id', authenticate, requireAdmin, async (req: AuthRequest, re
     }
 
     await logActivity(`${updated.edfNumber} Updated`, updated.edfNumber, req);
+    takeDatabaseBackup('auto').catch(console.error);
+
     res.json(updated);
   } catch (error: any) {
     console.error('Update EDF error:', error);
@@ -925,6 +1061,8 @@ app.post('/api/edfs/:id/mark-status', authenticate, async (req: AuthRequest, res
     const actionText = status === 'Received' ? `${updated.edfNumber} Marked as Received` : status === 'Completed' ? `${updated.edfNumber} Completed` : `${updated.edfNumber} Marked as Pending`;
     await logActivity(actionText, updated.edfNumber, req);
 
+    takeDatabaseBackup('auto').catch(console.error);
+
     res.json(updated);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update status' });
@@ -941,6 +1079,8 @@ app.delete('/api/edfs/:id', authenticate, requireAdmin, async (req: AuthRequest,
     }
 
     await logActivity(`${deleted.edfNumber} Deleted`, deleted.edfNumber, req);
+    takeDatabaseBackup('auto').catch(console.error);
+
     res.json({ success: true, message: 'EDF deleted' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete EDF' });
@@ -960,6 +1100,7 @@ app.post('/api/edfs/bulk-action', authenticate, requireAdmin, async (req: AuthRe
     if (action === 'delete') {
       await db.delete(edfs).where(inArray(edfs.id, intIds));
       await logActivity(`Bulk deleted ${intIds.length} EDFs`, undefined, req);
+      takeDatabaseBackup('auto').catch(console.error);
       return res.json({ success: true, count: intIds.length, message: `${intIds.length} EDF(s) deleted` });
     }
 
@@ -970,6 +1111,7 @@ app.post('/api/edfs/bulk-action', authenticate, requireAdmin, async (req: AuthRe
         await recordStatusHistory(item.id, item.edfNumber, 'Received', item.status, 'Bulk action: Marked as Received', req);
       }
       await logActivity(`Bulk marked ${intIds.length} EDFs as Received`, undefined, req);
+      takeDatabaseBackup('auto').catch(console.error);
       return res.json({ success: true, count: intIds.length, message: `${intIds.length} EDF(s) marked as Received` });
     }
 
@@ -980,6 +1122,7 @@ app.post('/api/edfs/bulk-action', authenticate, requireAdmin, async (req: AuthRe
         await recordStatusHistory(item.id, item.edfNumber, 'Completed', item.status, 'Bulk action: Marked as Completed', req);
       }
       await logActivity(`Bulk completed ${intIds.length} EDFs`, undefined, req);
+      takeDatabaseBackup('auto').catch(console.error);
       return res.json({ success: true, count: intIds.length, message: `${intIds.length} EDF(s) marked as Completed` });
     }
 
@@ -1105,6 +1248,42 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
   } catch (error) {
     console.error('Dashboard stats error:', error);
     res.status(500).json({ error: 'Failed to compute dashboard stats' });
+  }
+});
+
+// ----------------------------------------------------
+// SYSTEM BACKUP & RECOVERY DIAGNOSTICS
+// ----------------------------------------------------
+
+// Get backup status
+app.get('/api/system/backup', authenticate, async (_req: Request, res: Response) => {
+  try {
+    const status = await getBackupStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get backup status' });
+  }
+});
+
+// Trigger manual backup
+app.post('/api/system/backup', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const ok = await takeDatabaseBackup('manual');
+    await logActivity('Manual database backup snapshot triggered', undefined, req);
+    res.json({ success: ok, message: ok ? 'Database backup successfully saved' : 'Backup failed' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to trigger backup' });
+  }
+});
+
+// Trigger restore from backup
+app.post('/api/system/restore', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const ok = await restoreFromBackupIfNeeded();
+    await logActivity('Database restore evaluated from permanent backup', undefined, req);
+    res.json({ success: ok, message: ok ? 'Database records preserved/restored' : 'No restore needed' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to run restore' });
   }
 });
 

@@ -67,7 +67,7 @@ const CustomChartTooltip = ({ active, payload }: any) => {
         </div>
         {data.categories && Object.keys(data.categories).length > 0 && (
           <div className="pt-1.5 border-t border-slate-700/60 space-y-1">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">
+            <span className="text-[10px] text-slate-400 block font-bold">
               By Category:
             </span>
             <div className="flex flex-wrap gap-1">
@@ -429,15 +429,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const total = Math.max(stats.total, 1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       {/* Welcome & Quick Action Bar (Compact Modern Size) */}
-      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r ${getBannerGradient(accent)} text-white shadow-xl transition-all duration-300`}>
-        <div>
+      <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r ${getBannerGradient(accent)} text-white shadow-xl transition-all duration-300 w-full min-w-0`}>
+        <div className="min-w-0">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur text-[11px] font-bold mb-1.5">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Demand Form Coordinator Hub</span>
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Demand Form Coordinator Hub</span>
           </div>
-          <h2 className="text-lg sm:text-xl font-black tracking-tight">
+          <h2 className="text-lg sm:text-xl font-black tracking-tight truncate">
             EDF Operational Overview
           </h2>
           <p className="text-rose-100 text-xs mt-0.5 max-w-xl font-medium">
@@ -450,14 +450,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <>
               <button
                 onClick={onOpenCreate}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white ${getBannerBtnColor(accent)} font-extrabold text-xs shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer`}
+                className={`flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white ${getBannerBtnColor(accent)} font-extrabold text-xs shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-95 transition-all cursor-pointer`}
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>Create EDF</span>
               </button>
               <button
                 onClick={onOpenImport}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs"
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs"
               >
                 <FileUp className="w-3.5 h-3.5" />
                 <span>Import Excel</span>
@@ -466,7 +466,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           )}
           <button
             onClick={onExportCSV}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs"
             title="Export filtered records to CSV"
           >
             <Download className="w-3.5 h-3.5" />
@@ -478,7 +478,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+              className="flex items-center justify-center gap-1 px-3 py-2 min-h-[38px] rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
               title="Refresh all dashboard statistics and tables"
               aria-label="Refresh dashboard data"
             >
@@ -490,22 +490,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Primary KPI Header: Total EDFs & Status Breakdown */}
-      <div>
+      <div className="w-full min-w-0">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="text-xs font-black text-slate-900 dark:text-white truncate">
               Status Matrix (Click to filter)
             </h3>
             {stats.overdue > 0 && (
-              <span className="px-2 py-0.2 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse">
+              <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse shrink-0">
                 {stats.overdue} Action Required
               </span>
             )}
           </div>
-          <span className="text-[11px] text-slate-400">Live operational status</span>
+          <span className="text-[11px] text-slate-400 shrink-0">Live operational status</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 w-full min-w-0">
           {/* Total EDFs Card */}
           <button
             onClick={() => onFilterNavigate('all')}
@@ -671,7 +671,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                   <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">
                     {isOverdueAlert ? (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-rose-600 text-white font-black text-[10px] uppercase tracking-wider animate-pulse">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-rose-600 text-white font-black text-[10px] animate-pulse">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                         <span>Requires Attention</span>
                       </span>
@@ -699,8 +699,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Activity className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <span>EDF Creation Frequency (Last 7 Days)</span>
+              <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <span>Edf Creation Frequency (Last 7 Days)</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
                   Daily Trend
                 </span>
@@ -714,7 +714,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {/* Metric Summary Badges */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">
+              <span className="text-[10px] text-slate-400 block font-bold">
                 7-Day Total
               </span>
               <span className="font-mono font-black text-slate-900 dark:text-white text-sm">
@@ -722,7 +722,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </span>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-wider">
+              <span className="text-[10px] text-slate-400 block font-bold">
                 Daily Average
               </span>
               <span className="font-mono font-black text-slate-900 dark:text-white text-sm">
@@ -730,7 +730,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </span>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60">
-              <span className="text-[10px] text-rose-600 dark:text-rose-400 block font-bold uppercase tracking-wider">
+              <span className="text-[10px] text-rose-600 dark:text-rose-400 block font-bold">
                 Peak Day
               </span>
               <span className="font-mono font-black text-rose-700 dark:text-rose-300 text-sm">
@@ -783,26 +783,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Category Summary Cards (Clickable) */}
-      <div>
+      <div className="w-full min-w-0">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+          <h3 className="text-xs font-black text-slate-900 dark:text-white">
             Category Demands (Click to filter)
           </h3>
           <span className="text-[11px] text-slate-400">Department distribution</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 w-full min-w-0">
           {categoryCards.map((card) => {
             const Icon = card.icon;
             return (
               <button
                 key={card.id}
                 onClick={() => onFilterNavigate('category', card.id)}
-                className="group p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-500 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left cursor-pointer"
+                className="group p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-500 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left cursor-pointer min-w-0"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div
-                    className={`p-2 rounded-xl ${card.bgColor} group-hover:scale-110 transition-transform`}
+                    className={`p-2 rounded-xl ${card.bgColor} group-hover:scale-110 transition-transform shrink-0`}
                   >
                     <Icon className="w-4 h-4" />
                   </div>
@@ -810,8 +810,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     {Math.round((card.count / total) * 100)}%
                   </span>
                 </div>
-                <div className="mt-2">
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                <div className="mt-2 min-w-0">
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
                     {card.name}
                   </p>
                   <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">
@@ -825,11 +825,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Visual Charts & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6 w-full min-w-0">
         {/* Category Breakdown Chart Card - With matching Domain Gradients & Category Icons */}
-        <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm w-full min-w-0">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
-            <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+            <h4 className="text-xs font-black text-slate-900 dark:text-white">
               Category Distribution
             </h4>
             <span className="text-xs text-slate-400 font-mono font-bold">Total: {stats.total}</span>

@@ -124,15 +124,16 @@ export function useLiveTimer(requiredDateStr: string | Date, status?: string): T
   const [timer, setTimer] = useState<TimerResult>(() => calculateLiveTimer(requiredDateStr, status));
 
   useEffect(() => {
-    const update = () => {
-      setTimer(calculateLiveTimer(requiredDateStr, status));
-    };
-
-    update();
+    // If status is Received or Completed, timer is stopped
     if (status === 'Received' || status === 'Completed') {
+      setTimer(calculateLiveTimer(requiredDateStr, status));
       return;
     }
-    const interval = setInterval(update, 1000);
+
+    const interval = setInterval(() => {
+      setTimer(calculateLiveTimer(requiredDateStr, status));
+    }, 1000);
+
     return () => clearInterval(interval);
   }, [requiredDateStr, status]);
 

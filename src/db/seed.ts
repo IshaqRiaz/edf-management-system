@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs';
 import { db } from './index.ts';
-import { users, categories, edfs, edfItems, activityLogs, requesters, systemSettings } from './schema.ts';
+import { users, categories, edfs, edfItems, requesters, systemSettings } from './schema.ts';
 import { eq } from 'drizzle-orm';
-import { restoreFromBackupIfNeeded, takeDatabaseBackup } from '../lib/backupManager.ts';
+import { restoreFromBackupIfNeeded, takeDatabaseBackup, isUserDataPresent } from '../lib/backupManager.ts';
 
 export const DEFAULT_REQUESTER_NAMES = [
   'Ashraf',
@@ -24,12 +24,15 @@ export const DEFAULT_REQUESTER_NAMES = [
 export async function seedDatabase() {
   try {
     // 0. Attempt backup restoration if database was ever reset
-    await restoreFromBackupIfNeeded();
+    const restored = await restoreFromBackupIfNeeded();
+    if (restored) {
+      console.log('[Seed Protection] Existing database restored from backup. Protecting all user data.');
+    }
 
     // 1. Check if admin user exists
     const existingUsers = await db.select().from(users).limit(1);
     if (existingUsers.length === 0) {
-      console.log('Seeding initial users...');
+      console.log('Seeding initial authentication accounts...');
       const adminHash = await bcrypt.hash('admin123', 10);
       const visitorHash = await bcrypt.hash('visitor123', 10);
 
@@ -47,7 +50,7 @@ export async function seedDatabase() {
           passwordHash: visitorHash,
         },
       ]);
-      console.log('Default users seeded.');
+      console.log('Default accounts initialized.');
     }
 
     // 2. Check and seed categories
@@ -62,22 +65,28 @@ export async function seedDatabase() {
     ];
 
     if (existingCategories.length === 0) {
-      console.log('Seeding categories...');
+      console.log('Seeding default categories...');
       for (const cat of defaultCategories) {
         await db.insert(categories).values(cat).onConflictDoNothing();
       }
     }
 
-    // 3. Seed default Requesters list (alphabetical order)
+    // 3. Seed default Requesters list in alphabetical order
     const existingRequesters = await db.select().from(requesters).limit(1);
     if (existingRequesters.length === 0) {
-      console.log('Seeding requester names in alphabetical order...');
-      for (const name of DEFAULT_REQUESTER_NAMES) {
+      console.log('Seeding default requester names in alphabetical order...');
+      const sortedNames = [...DEFAULT_REQUESTER_NAMES].sort((a, b) => a.localeCompare(b));
+      for (const name of sortedNames) {
         await db.insert(requesters).values({ name }).onConflictDoNothing();
       }
     }
 
-    // 4. Check if seed has ever been executed before or if database already contains EDFs
+    // 4. SEED DATA PROTECTION:
+    // Check if user data exists in database, backups, or if seed was ever finalized.
+    // RULE: If user data exists, NEVER reload sample data. Never overwrite existing records.
+    const userAlreadyHasData = await isUserDataPresent();
+    const existingEdfs = await db.select().from(edfs).limit(1);
+
     const seedSetting = await db
       .select()
       .from(systemSettings)
@@ -85,16 +94,15 @@ export async function seedDatabase() {
       .limit(1);
 
     const hasSeedCompleted = seedSetting.length > 0 && seedSetting[0].value === 'true';
-    const existingEdfs = await db.select().from(edfs).limit(1);
 
-    if (hasSeedCompleted || existingEdfs.length > 0) {
-      console.log('[Persistence] User data detected or initial seed already finalized. Preserving existing records without modification.');
+    if (userAlreadyHasData || hasSeedCompleted || existingEdfs.length > 0) {
+      console.log('[Seed Protection] User records detected or installation already initialized. Skipping demo data creation to guarantee 100% data preservation.');
       await takeDatabaseBackup('auto');
       return;
     }
 
     // 5. Very first installation ONLY: seed baseline sample EDFs
-    console.log('Seeding initial baseline EDFs for first installation...');
+    console.log('[Seed Initial] Very first run detected. Seeding baseline demonstration EDFs...');
     const now = new Date();
 
     const futureDate1 = new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000 + 5 * 3600 * 1000);
@@ -115,6 +123,7 @@ export async function seedDatabase() {
         quantity: 2,
         unit: 'sets',
         status: 'Overdue',
+        priority: 'High',
         remarks: 'Urgent: Chiller #2 high pressure alarm triggered. Supply pending vendor quote.',
         createdBy: '03001234567',
       },
@@ -128,6 +137,7 @@ export async function seedDatabase() {
         quantity: 4,
         unit: 'pcs',
         status: 'Pending',
+        priority: 'High',
         remarks: 'Scheduled 500-hour service on 250kVA Perkins DG set.',
         createdBy: '03001234567',
       },
@@ -141,6 +151,7 @@ export async function seedDatabase() {
         quantity: 50,
         unit: 'meters',
         status: 'Pending',
+        priority: 'Medium',
         remarks: 'Server room power distribution panel upgrade.',
         createdBy: '03001234567',
       },
@@ -154,6 +165,7 @@ export async function seedDatabase() {
         quantity: 2,
         unit: 'kits',
         status: 'Received',
+        priority: 'Medium',
         remarks: 'Delivered to basement pump room; technician installation in progress.',
         createdBy: '03001234567',
       },
@@ -167,6 +179,7 @@ export async function seedDatabase() {
         quantity: 3,
         unit: 'units',
         status: 'Completed',
+        priority: 'Low',
         remarks: 'Accounts department extensions reconfigured and tested OK.',
         createdBy: '03001234567',
       },
@@ -180,6 +193,7 @@ export async function seedDatabase() {
         quantity: 6,
         unit: 'sets',
         status: 'Overdue',
+        priority: 'High',
         remarks: 'Fire exit doors on 3rd & 4th floors require immediate repair.',
         createdBy: '03001234567',
       },
@@ -210,10 +224,10 @@ export async function seedDatabase() {
         set: { value: 'true', updatedAt: new Date() },
       });
 
-    // Create immediate initial backup
+    // Create immediate permanent backup
     await takeDatabaseBackup('auto');
-    console.log('Sample baseline EDFs seeded and initial permanent backup created.');
+    console.log('[Seed Initial] Baseline EDFs seeded and initial permanent backup created.');
   } catch (error) {
-    console.error('Database seeding error:', error);
+    console.error('[Seed Error] Database seeding error:', error);
   }
 }

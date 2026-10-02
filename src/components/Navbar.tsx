@@ -372,7 +372,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
               </span>
-              <span className="text-[10px] font-black uppercase tracking-wider text-rose-900 dark:text-rose-200">
+              <span className="text-[10px] font-black tracking-wider text-rose-900 dark:text-rose-200">
                 Live Delivery Watch
               </span>
             </div>
@@ -443,7 +443,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <Bell className="w-4 h-4" />
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                        <h4 className="text-xs font-black text-slate-900 dark:text-white tracking-wider flex items-center gap-1.5">
                           <span>Status Notifications</span>
                           {unreadCount > 0 && (
                             <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-600 text-white">
@@ -617,7 +617,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setShowPaletteMenu(false)}
                 />
                 <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 p-2">
-                  <div className="px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-rose-500">
+                  <div className="px-3 py-1.5 text-[11px] font-black tracking-wider text-rose-500">
                     Grapefruit Palette
                   </div>
                   <div className="space-y-1">

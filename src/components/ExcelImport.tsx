@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Category, EDFItem, EDFPriority } from '../types.ts';
 import { getCategoryBadgeClass, getCategoryTheme } from '../utils/categoryColors.ts';
+import { RequesterDropdown } from './RequesterDropdown.tsx';
 import {
   FileUp,
   FileSpreadsheet,
@@ -417,7 +418,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
             <div className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                     Paste rows directly from your Excel Sheet
                   </label>
                   <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
@@ -518,7 +519,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
 
             {/* Category Selection Grid with domain colors */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
                 Department Category *
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
@@ -563,8 +564,8 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
               {/* EDF Number */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  EDF Number *
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Edf Number *
                 </label>
                 <div className="relative">
                   <Hash className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -598,35 +599,27 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                 )}
               </div>
 
-              {/* Requester Name */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              {/* Requester Name Dropdown */}
+              <div className="min-w-0">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Requester Name *
                 </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={requesterName}
-                    onChange={(e) => {
-                      setRequesterName(e.target.value);
-                      if (e.target.value.trim()) {
-                        setValidationErrors((prev) => {
-                          const copy = { ...prev };
-                          delete copy.requesterName;
-                          return copy;
-                        });
-                      }
-                    }}
-                    placeholder="e.g. Engr. Hamza"
-                    className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 ${
-                      validationErrors.requesterName
-                        ? 'border-red-500 focus:ring-red-400'
-                        : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500'
-                    }`}
-                    required
-                  />
-                </div>
+                <RequesterDropdown
+                  value={requesterName}
+                  onChange={(val) => {
+                    setRequesterName(val);
+                    if (val.trim()) {
+                      setValidationErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.requesterName;
+                        return copy;
+                      });
+                    }
+                  }}
+                  error={validationErrors.requesterName}
+                  placeholder="Select or enter requester name..."
+                  required
+                />
                 {validationErrors.requesterName && (
                   <p className="text-[11px] font-semibold text-red-500 mt-1 flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
@@ -637,7 +630,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
 
               {/* Priority */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Priority Level *
                 </label>
                 <select
@@ -653,7 +646,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
 
               {/* Request / Issue Date */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Request / Issue Date *
                 </label>
                 <div className="relative">
@@ -689,7 +682,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
 
               {/* Required Date - DATE ONLY (No time picker!) */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Required Date * (Date Only)
                 </label>
                 <div className="relative">
@@ -725,7 +718,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
 
               {/* Remarks / Notes */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Remarks & Notes
                 </label>
                 <input
@@ -778,7 +771,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
             <div className="hidden sm:block border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase tracking-wider text-[11px] font-bold">
+                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 tracking-wider text-[11px] font-bold">
                     <th className="py-2.5 px-4 w-12 text-center">#</th>
                     <th className="py-2.5 px-4">Material / Item Description</th>
                     <th className="py-2.5 px-4 w-32">Unit</th>
@@ -863,7 +856,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    <label className="text-[10px] font-bold text-slate-500 tracking-wider block mb-1">
                       Material
                     </label>
                     <input
@@ -877,7 +870,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 tracking-wider block mb-1">
                         Unit
                       </label>
                       <input
@@ -889,7 +882,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      <label className="text-[10px] font-bold text-slate-500 tracking-wider block mb-1">
                         Quantity
                       </label>
                       <input

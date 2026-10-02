@@ -549,7 +549,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
               <CalendarRange className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
                 Date Range Activity Summary
               </h3>
               <p className="text-[11px] text-slate-400 font-medium">
@@ -560,11 +560,11 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
           {/* Quick indicator badges */}
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
               {dateRangeSummary.uniqueUsersCount} Active Contributors
             </span>
             {isAdmin && (
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 flex items-center gap-1">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900 flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3" />
                 <span>Admin Certified</span>
               </span>
@@ -577,7 +577,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
           {/* Card 1: TOTAL ACTIONS PERFORMED (in selected date range) */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-50/80 to-white dark:from-rose-950/30 dark:to-slate-900 border border-rose-100 dark:border-rose-900/50 shadow-2xs">
             <div className="flex items-center justify-between text-xs font-semibold text-rose-600 dark:text-rose-400 mb-1">
-              <span className="font-black uppercase tracking-wider text-[10px]">Total Actions Performed</span>
+              <span className="font-black tracking-wider text-[10px]">Total Actions Performed</span>
               <CheckCheck className="w-4 h-4" />
             </div>
             <div className="flex items-baseline gap-2">
@@ -602,7 +602,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
           {/* Card 2: MOST ACTIVE USER (in selected date range) */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/30 dark:to-slate-900 border border-amber-100 dark:border-amber-900/50 shadow-2xs">
             <div className="flex items-center justify-between text-xs font-semibold text-amber-600 dark:text-amber-400 mb-1">
-              <span className="font-black uppercase tracking-wider text-[10px]">Most Active User</span>
+              <span className="font-black tracking-wider text-[10px]">Most Active User</span>
               <Award className="w-4 h-4" />
             </div>
             {activeUser ? (
@@ -612,7 +612,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                     {activeUser.name}
                   </span>
                   <span
-                    className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider ${
+                    className={`px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider ${
                       activeUser.role === 'Admin'
                         ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
                         : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900'
@@ -637,7 +637,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
           {/* Card 3: DATE RANGE STATUS & PRESET */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50/80 to-white dark:from-sky-950/30 dark:to-slate-900 border border-sky-100 dark:border-sky-900/50 shadow-2xs">
             <div className="flex items-center justify-between text-xs font-semibold text-sky-600 dark:text-sky-400 mb-1">
-              <span className="font-black uppercase tracking-wider text-[10px]">Active Window</span>
+              <span className="font-black tracking-wider text-[10px]">Active Window</span>
               <Calendar className="w-4 h-4" />
             </div>
             <p className="text-sm font-black text-slate-900 dark:text-white truncate mt-1">
@@ -645,7 +645,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
             </p>
             <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-sky-100/60 dark:border-sky-900/40 text-[11px]">
               <span className="text-slate-500 font-medium">Filter Preset:</span>
-              <span className="font-bold text-sky-600 dark:text-sky-400 uppercase text-[10px]">
+              <span className="font-bold text-sky-600 dark:text-sky-400 text-[10px]">
                 {datePreset}
               </span>
             </div>
@@ -655,7 +655,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
           <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-950/30 dark:to-slate-900 border border-emerald-100 dark:border-emerald-900/50 shadow-2xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
-                <span className="font-black uppercase tracking-wider text-[10px]">Compliance Reporting</span>
+                <span className="font-black tracking-wider text-[10px]">Compliance Reporting</span>
                 <FileSpreadsheet className="w-4 h-4" />
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
@@ -697,7 +697,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
             <History className="w-6 h-6 text-white" />
           </div>
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/25 text-[11px] font-black uppercase tracking-wider mb-1.5">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/25 text-[11px] font-black tracking-wider mb-1.5">
               <Shield className="w-3 h-3" />
               <span>Verified Status History</span>
             </div>
@@ -752,7 +752,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
         {/* Prominent Search Bar with Username & Action Keyword Support */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label htmlFor="audit-search-input" className="block text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+            <label htmlFor="audit-search-input" className="block text-xs font-black text-slate-900 dark:text-white tracking-wider flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-rose-500" />
               <span>Search Audit Logs by Username or Action Keyword</span>
             </label>
@@ -936,7 +936,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
       <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+            <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
               Chronological Audit Trail
             </h3>
             <span className="font-mono text-xs font-bold text-slate-400">
@@ -951,7 +951,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase text-[11px]">
+              <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
                 <th className="py-3 px-3 w-10 text-center">
                   <button
                     onClick={toggleAllRows}
@@ -1087,25 +1087,25 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                           {isReceived && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shadow-2xs">
                               <PackageCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                              <span>RECEIVED</span>
+                              <span>Received</span>
                             </span>
                           )}
                           {isCompleted && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-2xs">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>COMPLETED</span>
+                              <span>Completed</span>
                             </span>
                           )}
                           {!isReceived && !isCompleted && (!log.fromStatus || (log.notes && log.notes.toLowerCase().includes('creat'))) && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-900 shadow-2xs">
                               <Sparkles className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                              <span>CREATED</span>
+                              <span>Created</span>
                             </span>
                           )}
                           {!isReceived && !isCompleted && Boolean(log.fromStatus) && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200 dark:border-amber-900 shadow-2xs">
                               <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                              <span>UPDATED ({log.toStatus})</span>
+                              <span>Updated ({log.toStatus})</span>
                             </span>
                           )}
                           {!isReceived && !isCompleted && log.fromStatus === undefined && !(log.notes && log.notes.toLowerCase().includes('creat')) && (
@@ -1123,12 +1123,12 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                               {log.changedBy || 'System'}
                             </span>
                             {isAdminActor && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
                                 Admin
                               </span>
                             )}
                             {isVisitor && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
                                 Visitor
                               </span>
                             )}
@@ -1202,7 +1202,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-2">
-                                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                      <h4 className="text-xs font-black tracking-wider text-slate-900 dark:text-white">
                                         Audit Forensics & Property Mutation Details
                                       </h4>
                                       <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
@@ -1258,14 +1258,14 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 {/* Column 1: Client Network & Device Identity */}
                                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
-                                  <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 pb-1.5 border-b border-slate-200/60 dark:border-slate-800">
+                                  <div className="flex items-center gap-1.5 text-xs font-black tracking-wider text-rose-600 dark:text-rose-400 pb-1.5 border-b border-slate-200/60 dark:border-slate-800">
                                     <Globe className="w-4 h-4" />
                                     <span>Client & Network Forensics</span>
                                   </div>
 
                                   {/* IP Address */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       User IP Address
                                     </span>
                                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -1280,7 +1280,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                   {/* Device Type */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       Device Hardware & OS
                                     </span>
                                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -1293,7 +1293,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                   {/* Browser User Agent */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       Browser / Agent
                                     </span>
                                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -1306,7 +1306,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                   {/* Authentication Method */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       Auth Method & Signature
                                     </span>
                                     <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1 mt-0.5">
@@ -1318,14 +1318,14 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                 {/* Column 2: Specific Property Changes (Diff View) */}
                                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
-                                  <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 pb-1.5 border-b border-slate-200/60 dark:border-slate-800">
+                                  <div className="flex items-center gap-1.5 text-xs font-black tracking-wider text-indigo-600 dark:text-indigo-400 pb-1.5 border-b border-slate-200/60 dark:border-slate-800">
                                     <SlidersHorizontal className="w-4 h-4" />
                                     <span>Property Mutation Diff</span>
                                   </div>
 
                                   {/* Status Transition Diff */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       Status Property Mutation
                                     </span>
                                     <div className="flex items-center gap-2 mt-1">
@@ -1348,7 +1348,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                                   {/* Requester & Category Affected */}
                                   <div className="grid grid-cols-2 gap-2">
                                     <div>
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                      <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                         Requester
                                       </span>
                                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate">
@@ -1356,7 +1356,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                                       </span>
                                     </div>
                                     <div>
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                      <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                         Department
                                       </span>
                                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 block truncate">
@@ -1367,7 +1367,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                   {/* Item Material Summary */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       Material Item Summary
                                     </span>
                                     <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-0.5 block">
@@ -1378,7 +1378,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                   {/* Action Remarks / Details */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       Logged Action Remarks
                                     </span>
                                     <span className="text-xs italic text-slate-600 dark:text-slate-400 mt-0.5 block bg-white dark:bg-slate-900 p-1.5 rounded border border-slate-200/60 dark:border-slate-800">
@@ -1389,14 +1389,14 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                 {/* Column 3: Cryptographic Audit Trail & Timestamps */}
                                 <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800 space-y-3">
-                                  <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pb-1.5 border-b border-slate-200/60 dark:border-slate-800">
+                                  <div className="flex items-center gap-1.5 text-xs font-black tracking-wider text-emerald-600 dark:text-emerald-400 pb-1.5 border-b border-slate-200/60 dark:border-slate-800">
                                     <Hash className="w-4 h-4" />
                                     <span>Immutable Audit Ledger</span>
                                   </div>
 
                                   {/* Cryptographic Audit Hash */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       Cryptographic Integrity Hash
                                     </span>
                                     <code className="text-[11px] font-mono font-bold text-rose-600 dark:text-rose-400 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 block mt-1 break-all">
@@ -1409,7 +1409,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                   {/* ISO 8601 UTC Timestamp */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       ISO 8601 UTC Timestamp
                                     </span>
                                     <span className="font-mono text-xs font-medium text-slate-800 dark:text-slate-200 block mt-0.5">
@@ -1419,7 +1419,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                   {/* Local Timestamp */}
                                   <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                                    <span className="text-[10px] font-bold text-slate-400 tracking-wider block">
                                       Local System Timestamp
                                     </span>
                                     <span className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 block mt-0.5">
@@ -1429,7 +1429,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
                                   {/* Compliance Seal */}
                                   <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
-                                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    <span className="text-[10px] font-black tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                                       <CheckCircle2 className="w-3.5 h-3.5" />
                                       <span>Compliance Status</span>
                                     </span>

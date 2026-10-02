@@ -23,12 +23,12 @@ export const TimerBadge: React.FC<TimerBadgeProps> = ({
     return (
       <span
         className={`inline-flex items-center gap-1 font-bold rounded-lg border transition-all ${
-          compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]'
+          compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-0.5 text-xs'
         } bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800/80 shadow-2xs whitespace-nowrap`}
         title="Demand Received - Countdown stopped"
       >
         {showIcon && <PackageCheck className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-blue-600 dark:text-blue-400 shrink-0`} />}
-        <span className="tracking-tight">Received (Timer Stopped)</span>
+        <span className="tracking-tight">{compact ? 'Received' : 'Received (Timer Stopped)'}</span>
       </span>
     );
   }
@@ -37,7 +37,7 @@ export const TimerBadge: React.FC<TimerBadgeProps> = ({
     return (
       <span
         className={`inline-flex items-center gap-1 font-bold rounded-lg border transition-all ${
-          compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]'
+          compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-0.5 text-xs'
         } bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/80 shadow-2xs whitespace-nowrap`}
         title="Demand Completed - Fulfilled"
       >
@@ -51,7 +51,7 @@ export const TimerBadge: React.FC<TimerBadgeProps> = ({
     return (
       <span
         className={`inline-flex items-center gap-1 font-bold rounded-lg border transition-all ${
-          compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]'
+          compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-0.5 text-xs'
         } bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-800 animate-pulse whitespace-nowrap`}
         title={`Deadline: ${new Date(requiredDate).toLocaleDateString()}`}
       >
@@ -65,7 +65,7 @@ export const TimerBadge: React.FC<TimerBadgeProps> = ({
     return (
       <span
         className={`inline-flex items-center gap-1 font-medium rounded-lg border transition-all ${
-          compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]'
+          compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-0.5 text-xs'
         } bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800 whitespace-nowrap`}
         title={`Deadline: ${new Date(requiredDate).toLocaleDateString()}`}
       >
@@ -78,7 +78,7 @@ export const TimerBadge: React.FC<TimerBadgeProps> = ({
   return (
     <span
       className={`inline-flex items-center gap-1 font-medium rounded-lg border transition-all ${
-        compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[11px]'
+        compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-0.5 text-xs'
       } bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/80 whitespace-nowrap`}
       title={`Deadline: ${new Date(requiredDate).toLocaleDateString()}`}
     >

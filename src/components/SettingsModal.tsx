@@ -229,7 +229,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               )}
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 tracking-wider mb-1">
                   Current Password *
                 </label>
                 <input
@@ -243,7 +243,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 tracking-wider mb-1">
                   New Password *
                 </label>
                 <input
@@ -257,7 +257,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 tracking-wider mb-1">
                   Confirm New Password *
                 </label>
                 <input

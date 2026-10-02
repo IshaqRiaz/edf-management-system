@@ -194,7 +194,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
           {/* Status & Live Countdown Box */}
           <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-indigo-50/30 dark:from-slate-950 dark:to-indigo-950/20 border border-indigo-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-[10px] font-bold text-slate-400">
                 Live Status & Schedule
               </span>
               <div className="flex items-center gap-2 mt-1">
@@ -202,7 +202,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                   Status: {edf.isOverdue ? 'Overdue' : edf.status}
                 </span>
                 {isEdfHighPriority(edf.requiredDate, edf.status) && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-300 dark:border-red-800 shadow-2xs animate-pulse">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-300 dark:border-red-800 shadow-2xs animate-pulse">
                     <AlertTriangle className="w-3 h-3 text-red-600 dark:text-red-400 fill-red-500/20 shrink-0" />
                     <span>High Priority (&lt;24h)</span>
                   </span>
@@ -211,7 +211,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             </div>
 
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+              <span className="text-[10px] font-bold text-slate-400 block mb-1">
                 Required Date Countdown
               </span>
               <TimerBadge requiredDate={edf.requiredDate} status={edf.status} />
@@ -238,7 +238,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
               <span className="text-[11px] font-semibold text-slate-400">Priority Level</span>
               <div className="mt-1">
                 <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border ${
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
                     (edf.priority || 'Medium') === 'High'
                       ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800'
                       : (edf.priority || 'Medium') === 'Low'
@@ -271,13 +271,13 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
 
           {/* Materials Table - Order: Material -> Unit -> Quantity */}
           <div>
-            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
               Demand Form Material List
             </h4>
             <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase text-[10px]">
+                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[10px]">
                     <th className="py-2.5 px-4 w-12 text-center">#</th>
                     <th className="py-2.5 px-4">Material / Item Description</th>
                     <th className="py-2.5 px-4 w-28 text-right">Unit</th>
@@ -324,7 +324,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
           {/* Remarks */}
           {edf.remarks && (
             <div>
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Remarks & Notes
               </h4>
               <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300">
@@ -341,7 +341,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                   <History className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white">
                     Activity Timeline
                   </h4>
                   <p className="text-[11px] text-slate-400">

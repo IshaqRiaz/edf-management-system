@@ -147,7 +147,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
             <CalendarRange className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+            <h4 className="text-xs font-black tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
               <span>Date Range Filter</span>
               {hasActiveDateRange && (
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
@@ -222,7 +222,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
         <div className="space-y-1">
           <label
             htmlFor="audit-date-start"
-            className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between"
+            className="text-[11px] font-bold text-slate-600 dark:text-slate-400 tracking-wider flex items-center justify-between"
           >
             <span className="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-rose-500" />
@@ -253,7 +253,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
         <div className="space-y-1">
           <label
             htmlFor="audit-date-end"
-            className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between"
+            className="text-[11px] font-bold text-slate-600 dark:text-slate-400 tracking-wider flex items-center justify-between"
           >
             <span className="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-rose-500" />

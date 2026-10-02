@@ -177,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
-                <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white block">
+                <span className="text-xs font-black tracking-wider text-slate-900 dark:text-white block">
                   Navigation Menu
                 </span>
                 <span className="text-[10px] text-slate-400 font-medium">

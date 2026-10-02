@@ -78,7 +78,7 @@ export const LoginModal: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 tracking-wider mb-1.5">
                 Username (Phone Number)
               </label>
               <div className="relative">
@@ -97,7 +97,7 @@ export const LoginModal: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 tracking-wider mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -133,7 +133,7 @@ export const LoginModal: React.FC = () => {
 
           {/* Quick Role Login Chips */}
           <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
-            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3 text-center uppercase tracking-wider">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3 text-center tracking-wider">
               Quick Role Login (Click to populate)
             </p>
             <div className="grid grid-cols-2 gap-2.5">

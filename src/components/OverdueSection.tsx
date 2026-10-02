@@ -48,7 +48,7 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
               <AlertOctagon className="w-6 h-6 text-white animate-pulse" />
             </div>
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/25 text-[10px] font-black uppercase tracking-wider mb-1">
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/25 text-[10px] font-black tracking-wider mb-1">
                 Urgent Attention
               </div>
               <h2 className="text-lg sm:text-xl font-black tracking-tight">
@@ -63,7 +63,7 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
           <div className="flex items-center gap-2">
             <div className="px-3.5 py-1.5 rounded-xl bg-white text-rose-700 font-extrabold text-xs shadow-md text-center">
               <span className="text-lg font-black">{overdueEdfs.length}</span>
-              <span className="block text-[10px] uppercase font-bold text-rose-600">
+              <span className="block text-[10px] font-bold text-rose-600">
                 Overdue Forms
               </span>
             </div>
@@ -84,7 +84,7 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-rose-200 dark:border-rose-900 bg-rose-100/70 dark:bg-rose-950/80 text-rose-900 dark:text-rose-200 text-[11px] font-bold uppercase tracking-wider">
+              <tr className="border-b border-rose-200 dark:border-rose-900 bg-rose-100/70 dark:bg-rose-950/80 text-rose-900 dark:text-rose-200 text-[11px] font-bold tracking-wider">
                 <th className="py-3.5 px-4">EDF Number</th>
                 <th className="py-3.5 px-4">Category</th>
                 <th className="py-3.5 px-4">Issue Date</th>

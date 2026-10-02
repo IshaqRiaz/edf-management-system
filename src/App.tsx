@@ -58,53 +58,59 @@ const MainLayout: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterOverdueOnly, setFilterOverdueOnly] = useState<boolean>(false);
 
-  // Fetch all EDFs
-  const fetchEDFs = useCallback(async () => {
-    if (!token) return;
+  // In-app Toast Notification State (Avoids window.alert)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((curr) => (curr?.message === message ? null : curr));
+    }, 4000);
+  }, []);
+
+  // Resilient fetch helper with automatic retry for smooth server transitions
+  const fetchWithRetry = useCallback(async (url: string, retries = 1): Promise<any> => {
+    if (!token) return null;
     try {
-      const res = await fetch('/api/edfs', {
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        const data = await res.json();
-        setEdfs(data);
+        return await res.json();
       }
-    } catch (err) {
-      console.error('Failed to load EDFs:', err);
+      return null;
+    } catch {
+      if (retries > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        return fetchWithRetry(url, retries - 1);
+      }
+      return null;
     }
   }, [token]);
+
+  // Fetch all EDFs
+  const fetchEDFs = useCallback(async () => {
+    const data = await fetchWithRetry('/api/edfs');
+    if (Array.isArray(data)) {
+      setEdfs(data);
+    }
+  }, [fetchWithRetry]);
 
   // Fetch Dashboard Stats
   const fetchStats = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/dashboard/stats', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
-    } catch (err) {
-      console.error('Failed to load stats:', err);
+    const data = await fetchWithRetry('/api/dashboard/stats');
+    if (data && typeof data === 'object') {
+      setStats(data);
     }
-  }, [token]);
+  }, [fetchWithRetry]);
 
   // Fetch Categories
   const fetchCategories = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/categories', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCategories(data);
-      }
-    } catch (err) {
-      console.error('Failed to load categories:', err);
+    const data = await fetchWithRetry('/api/categories');
+    if (Array.isArray(data)) {
+      setCategories(data);
     }
-  }, [token]);
+  }, [fetchWithRetry]);
 
   // Refresh all application data
   const refreshAllData = useCallback(async () => {
@@ -168,16 +174,17 @@ const MainLayout: React.FC = () => {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to create EDF');
+        showToast(data.error || 'Failed to create EDF', 'error');
         return false;
       }
 
       await refreshAllData();
       setIsCreateModalOpen(false);
       setActiveTab('edfs');
+      showToast('Demand form created successfully!', 'success');
       return true;
     } catch (err: any) {
-      alert(err.message || 'Error creating EDF');
+      showToast(err.message || 'Error creating EDF', 'error');
       return false;
     }
   };
@@ -197,15 +204,16 @@ const MainLayout: React.FC = () => {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to update EDF');
+        showToast(data.error || 'Failed to update EDF', 'error');
         return false;
       }
 
       await refreshAllData();
       setEditingEdf(null);
+      showToast('Demand form updated successfully!', 'success');
       return true;
     } catch (err: any) {
-      alert(err.message || 'Error updating EDF');
+      showToast(err.message || 'Error updating EDF', 'error');
       return false;
     }
   };
@@ -220,12 +228,13 @@ const MainLayout: React.FC = () => {
 
       if (res.ok) {
         await refreshAllData();
+        showToast('Demand form deleted', 'info');
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to delete EDF');
+        showToast(data.error || 'Failed to delete EDF', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Error deleting EDF');
+      showToast(err.message || 'Error deleting EDF', 'error');
     }
   };
 
@@ -256,13 +265,14 @@ const MainLayout: React.FC = () => {
 
       if (res.ok) {
         await refreshAllData();
+        showToast(`Status marked as ${status}`, 'success');
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to update status');
+        showToast(data.error || 'Failed to update status', 'error');
         await refreshAllData();
       }
     } catch (err: any) {
-      alert(err.message || 'Error updating status');
+      showToast(err.message || 'Error updating status', 'error');
       await refreshAllData();
     }
   };
@@ -284,19 +294,20 @@ const MainLayout: React.FC = () => {
 
       if (res.ok) {
         await refreshAllData();
+        showToast(`Bulk action (${action}) completed successfully`, 'success');
       } else {
         const data = await res.json();
-        alert(data.error || 'Bulk action failed');
+        showToast(data.error || 'Bulk action failed', 'error');
       }
     } catch (err: any) {
-      alert(err.message || 'Error performing bulk action');
+      showToast(err.message || 'Error performing bulk action', 'error');
     }
   };
 
   // CSV Export utility
   const handleExportCSV = (listToExport: EDF[] = edfs) => {
     if (listToExport.length === 0) {
-      alert('No records available to export.');
+      showToast('No records available to export.', 'info');
       return;
     }
 
@@ -344,7 +355,7 @@ const MainLayout: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-3">
           <RefreshCw className="w-8 h-8 text-indigo-600 animate-spin" />
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          <span className="text-xs font-bold text-slate-500 tracking-wider">
             Loading EDF Management System...
           </span>
         </div>
@@ -509,6 +520,29 @@ const MainLayout: React.FC = () => {
           categories={categories}
           onRefreshCategories={fetchCategories}
         />
+      )}
+
+      {/* Floating In-App Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-md animate-in slide-in-from-bottom-5 duration-200">
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold border backdrop-blur-md ${
+              toast.type === 'error'
+                ? 'bg-red-50/95 dark:bg-red-950/95 text-red-700 dark:text-red-200 border-red-200 dark:border-red-800'
+                : toast.type === 'success'
+                ? 'bg-emerald-50/95 dark:bg-emerald-950/95 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
+                : 'bg-slate-900/95 text-white dark:bg-white/95 dark:text-slate-900 border-slate-700'
+            }`}
+          >
+            <span>{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-auto opacity-70 hover:opacity-100 p-0.5"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

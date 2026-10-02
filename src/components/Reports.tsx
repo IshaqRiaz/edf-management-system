@@ -223,7 +223,7 @@ export const Reports: React.FC<ReportsProps> = ({
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
                 Reports & Demand Analytics
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
                 Audit Trail Ready
               </span>
             </div>
@@ -401,7 +401,7 @@ export const Reports: React.FC<ReportsProps> = ({
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
-              <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-1">
+              <p className="text-[11px] font-black tracking-wider text-slate-400 mb-1">
                 Fulfillment Rate
               </p>
               <div className="flex items-baseline gap-2">
@@ -419,7 +419,7 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
-              <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-1">
+              <p className="text-[11px] font-black tracking-wider text-slate-400 mb-1">
                 Completed Demands
               </p>
               <div className="flex items-baseline gap-2">
@@ -432,7 +432,7 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
-              <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-1">
+              <p className="text-[11px] font-black tracking-wider text-slate-400 mb-1">
                 Active / In-Transit
               </p>
               <div className="flex items-baseline gap-2">
@@ -445,7 +445,7 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
-              <p className="text-[11px] font-black uppercase tracking-wider text-rose-500 mb-1">
+              <p className="text-[11px] font-black tracking-wider text-rose-500 mb-1">
                 Overdue Demands
               </p>
               <div className="flex items-baseline gap-2">
@@ -461,7 +461,7 @@ export const Reports: React.FC<ReportsProps> = ({
           {/* Category Breakdown Table */}
           <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
                 Departmental Demand Breakdown
               </h3>
               <span className="text-xs text-slate-400">Filtered distribution</span>
@@ -470,7 +470,7 @@ export const Reports: React.FC<ReportsProps> = ({
             <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase text-[11px]">
+                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4 text-center">Total Demands</th>
                     <th className="py-3 px-4 text-center">Completed</th>
@@ -527,7 +527,7 @@ export const Reports: React.FC<ReportsProps> = ({
           <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
                   Filtered Records in PDF Report
                 </h3>
                 <span className="font-mono text-xs font-bold text-slate-400">
@@ -547,7 +547,7 @@ export const Reports: React.FC<ReportsProps> = ({
             <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[360px] overflow-y-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase text-[11px] sticky top-0 z-10">
+                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px] sticky top-0 z-10">
                     <th className="py-2.5 px-4">EDF #</th>
                     <th className="py-2.5 px-4">Requester</th>
                     <th className="py-2.5 px-4">Category</th>
@@ -596,7 +596,7 @@ export const Reports: React.FC<ReportsProps> = ({
                           </td>
                           <td className="py-2.5 px-4 text-center">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
                                 isOverdue
                                   ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
                                   : item.status === 'Completed'
@@ -697,7 +697,7 @@ export const Reports: React.FC<ReportsProps> = ({
           <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
                   EDF Receipt & Status Audit Trail
                 </h3>
                 <p className="text-[11px] text-slate-400">
@@ -728,7 +728,7 @@ export const Reports: React.FC<ReportsProps> = ({
             <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold uppercase text-[11px]">
+                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
                     <th className="py-3 px-4 w-16 text-center">ID</th>
                     <th className="py-3 px-4">EDF Number</th>
                     <th className="py-3 px-4">Action / Event</th>
@@ -800,12 +800,12 @@ export const Reports: React.FC<ReportsProps> = ({
                                 {log.changedBy || 'System'}
                               </span>
                               {isAdmin && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
                                   Admin
                                 </span>
                               )}
                               {isVisitor && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
                                   Visitor
                                 </span>
                               )}

@@ -16,6 +16,12 @@ export interface Category {
   createdAt?: string;
 }
 
+export interface Requester {
+  id: number;
+  name: string;
+  createdAt?: string;
+}
+
 export type EDFStatus = 'Pending' | 'Received' | 'Completed' | 'Overdue';
 export type EDFPriority = 'Low' | 'Medium' | 'High';
 

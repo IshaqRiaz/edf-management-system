@@ -244,17 +244,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const hasActiveFilters = searchTerm !== '' || selectedCategory !== 'All' || overdueOnly;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       {/* Top Header & Metrics Banner */}
-      <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs w-full min-w-0">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
+              <div className="p-2 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
                 <Kanban className="w-5 h-5" />
               </div>
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              <div className="min-w-0">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight truncate">
                   Demand Form Kanban Board
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -268,7 +268,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
             {isAdmin && (
               <button
                 onClick={onOpenCreate}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-95"
+                className="flex items-center gap-2 px-4 py-2.5 min-h-[40px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-95"
               >
                 <PlusCircle className="w-4 h-4" />
                 <span>New Demand Form</span>
@@ -433,7 +433,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       </div>
 
       {/* Kanban 3-Column Board */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 items-start w-full min-w-0">
         {COLUMNS.map((col) => {
           const colItems = columnsData[col.key];
           const isOver = dragOverColumn === col.key;
@@ -545,7 +545,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
                           {/* Overdue or Status Pill */}
                           {isOverdue && col.key !== 'Completed' && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-50 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-200 dark:border-red-900 animate-pulse-subtle">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider bg-red-50 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-200 dark:border-red-900 animate-pulse-subtle">
                               Overdue
                             </span>
                           )}

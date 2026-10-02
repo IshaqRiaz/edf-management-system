@@ -208,7 +208,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUserId }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-stone-50/75 dark:bg-stone-950/60 border-b border-stone-200 dark:border-stone-800 text-stone-500 uppercase tracking-wider text-[11px] font-bold">
+              <tr className="bg-stone-50/75 dark:bg-stone-950/60 border-b border-stone-200 dark:border-stone-800 text-stone-500 tracking-wider text-[11px] font-bold">
                 <th className="py-3.5 px-4">Name</th>
                 <th className="py-3.5 px-4">Phone (Username)</th>
                 <th className="py-3.5 px-4">Role</th>
@@ -318,7 +318,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUserId }) => {
 
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 tracking-wider mb-1">
                   Full Name *
                 </label>
                 <input
@@ -332,7 +332,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUserId }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 tracking-wider mb-1">
                   Phone Number (Username) *
                 </label>
                 <input
@@ -346,7 +346,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUserId }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 tracking-wider mb-1">
                   Initial Password *
                 </label>
                 <input
@@ -360,7 +360,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUserId }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 tracking-wider mb-1">
                   Role Permission *
                 </label>
                 <select
@@ -413,7 +413,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUserId }) => {
 
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 tracking-wider mb-1">
                   New Password *
                 </label>
                 <input
