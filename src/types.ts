@@ -5,6 +5,7 @@ export interface User {
   phone: string;
   name: string;
   role: UserRole;
+  displayPassword?: string;
   createdAt?: string;
 }
 
@@ -22,7 +23,7 @@ export interface Requester {
   createdAt?: string;
 }
 
-export type EDFStatus = 'Pending' | 'Received' | 'Completed' | 'Overdue';
+export type EDFStatus = 'Pending' | 'Partially Received' | 'Received' | 'Completed' | 'Overdue';
 export type EDFPriority = 'Low' | 'Medium' | 'High';
 
 export interface EDFItem {
@@ -31,6 +32,10 @@ export interface EDFItem {
   itemDescription: string;
   quantity: number;
   unit: string;
+  status?: 'Pending' | 'Received';
+  receivedAt?: string | null;
+  receivedBy?: string | null;
+  createdAt?: string;
 }
 
 export interface EDFStatusHistory {
@@ -73,6 +78,8 @@ export interface EDF {
   updatedAt?: string;
   isOverdue?: boolean;
   items?: EDFItem[];
+  receivedItemsCount?: number;
+  totalItemsCount?: number;
   statusHistory?: EDFStatusHistory[];
 }
 
@@ -101,6 +108,7 @@ export interface DashboardStats {
   electrical: number;
   general: number;
   pending: number;
+  partiallyReceived?: number;
   received: number;
   completed: number;
   overdue: number;

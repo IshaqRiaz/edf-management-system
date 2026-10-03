@@ -87,6 +87,7 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
               <tr className="border-b border-rose-200 dark:border-rose-900 bg-rose-100/70 dark:bg-rose-950/80 text-rose-900 dark:text-rose-200 text-[11px] font-bold tracking-wider">
                 <th className="py-3.5 px-4">EDF Number</th>
                 <th className="py-3.5 px-4">Category</th>
+                <th className="py-3.5 px-4">Requester</th>
                 <th className="py-3.5 px-4">Issue Date</th>
                 <th className="py-3.5 px-4">Required Date</th>
                 <th className="py-3.5 px-4">Live Timer</th>
@@ -99,7 +100,7 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
             <tbody className="divide-y divide-rose-100 dark:divide-rose-900/60 text-xs">
               {overdueEdfs.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-16 text-center text-stone-500 dark:text-stone-400">
+                  <td colSpan={10} className="py-16 text-center text-stone-500 dark:text-stone-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <CheckCircle2 className="w-10 h-10 text-emerald-500" />
                       <p className="text-base font-bold text-stone-800 dark:text-stone-200">
@@ -112,7 +113,13 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
                   </td>
                 </tr>
               ) : (
-                overdueEdfs.map((item) => (
+                overdueEdfs.map((item) => {
+                  const rawItems = item.items || [];
+                  const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+                  const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+                  const isPartial = receivedCount > 0 && receivedCount < totalCount;
+
+                  return (
                   <tr
                     key={item.id}
                     className="bg-rose-50/80 dark:bg-rose-950/40 hover:bg-rose-100/70 dark:hover:bg-rose-900/50 transition-colors border-l-4 border-rose-500"
@@ -135,6 +142,11 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
                       </span>
                     </td>
 
+                    {/* Requester */}
+                    <td className="py-3.5 px-4 font-semibold text-stone-800 dark:text-stone-200 whitespace-nowrap">
+                      {item.requesterName}
+                    </td>
+
                     {/* Issue Date */}
                     <td className="py-3.5 px-4 text-stone-600 dark:text-stone-400 whitespace-nowrap font-medium">
                       {new Date(item.issueDate).toLocaleDateString()}
@@ -152,10 +164,17 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
 
                     {/* Status */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-sm shadow-rose-600/30">
-                        <AlertOctagon className="w-3 h-3" />
-                        <span>Overdue</span>
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-sm shadow-rose-600/30">
+                          <AlertOctagon className="w-3 h-3" />
+                          <span>Overdue</span>
+                        </span>
+                        {isPartial && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-300">
+                            Partial: {receivedCount}/{totalCount}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Material Summary */}
@@ -215,8 +234,9 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>

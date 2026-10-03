@@ -88,8 +88,25 @@ export async function safeMigrateDatabase(): Promise<boolean> {
         item_description TEXT NOT NULL,
         quantity INTEGER NOT NULL DEFAULT 1,
         unit TEXT NOT NULL DEFAULT 'pcs',
+        status TEXT NOT NULL DEFAULT 'Pending',
+        received_at TIMESTAMP,
+        received_by TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Ensure item status columns exist in edf_items
+    await client.query(`
+      ALTER TABLE edf_items ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Pending';
+      ALTER TABLE edf_items ADD COLUMN IF NOT EXISTS received_at TIMESTAMP;
+      ALTER TABLE edf_items ADD COLUMN IF NOT EXISTS received_by TEXT;
+    `);
+
+    // Backward compatibility: If parent EDF is already Received or Completed, set its items to Received
+    await client.query(`
+      UPDATE edf_items 
+      SET status = 'Received', received_at = CURRENT_TIMESTAMP, received_by = 'System' 
+      WHERE status = 'Pending' AND edf_id IN (SELECT id FROM edfs WHERE status IN ('Received', 'Completed'));
     `);
 
     // 5. Activity logs table

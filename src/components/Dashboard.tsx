@@ -150,6 +150,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return counts;
   }, [stats.recentActivity]);
 
+  // Count partially received EDFs to recognize partial receiving in dashboard
+  const partiallyReceivedCount = useMemo(() => {
+    return edfs.filter(
+      (e) =>
+        e.status === 'Partially Received' ||
+        (e.receivedItemsCount !== undefined &&
+          e.totalItemsCount !== undefined &&
+          e.receivedItemsCount > 0 &&
+          e.receivedItemsCount < e.totalItemsCount)
+    ).length;
+  }, [edfs]);
+
   // Frequency of EDF creation over the last 7 days
   const sevenDayStats = useMemo(() => {
     const now = new Date();
@@ -670,7 +682,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
 
                   <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">
-                    {isOverdueAlert ? (
+                    {card.id === 'Pending' && partiallyReceivedCount > 0 ? (
+                      <span className="text-amber-700 dark:text-amber-300 font-extrabold text-[10px]">
+                        {partiallyReceivedCount} Partial Intake
+                      </span>
+                    ) : isOverdueAlert ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-rose-600 text-white font-black text-[10px] animate-pulse">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                         <span>Requires Attention</span>
@@ -688,6 +704,92 @@ export const Dashboard: React.FC<DashboardProps> = ({
           })}
         </div>
       </div>
+
+      {/* Partially Received Tracking Box (Requirement 6) */}
+      {edfs.some(
+        (e) =>
+          e.status === 'Partially Received' ||
+          ((e.receivedItemsCount || 0) > 0 && (e.receivedItemsCount || 0) < (e.totalItemsCount || 1))
+      ) && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50/40 dark:from-sky-950/30 dark:to-indigo-950/20 border border-sky-200 dark:border-sky-900 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-sky-500 text-white shadow-xs">
+                <PackageCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>Partially Received Demands (In-Progress Intake)</span>
+                  <span className="px-2 py-0.2 rounded-full text-[10px] font-extrabold bg-sky-200 dark:bg-sky-900 text-sky-800 dark:text-sky-200">
+                    Tracked under Pending
+                  </span>
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  These demands stay in Pending until all material items have arrived.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onFilterNavigate('status', 'Pending')}
+              className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+            >
+              <span>View all pending</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {edfs
+              .filter(
+                (e) =>
+                  e.status === 'Partially Received' ||
+                  ((e.receivedItemsCount || 0) > 0 &&
+                    (e.receivedItemsCount || 0) < (e.totalItemsCount || 1))
+              )
+              .slice(0, 6)
+              .map((item) => {
+                const rawItems = item.items || [];
+                const totalCount =
+                  item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+                const receivedCount =
+                  item.receivedItemsCount ??
+                  rawItems.filter((i) => i.status === 'Received').length;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => onFilterNavigate('status', 'Pending')}
+                    className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-sky-100 dark:border-sky-900/60 shadow-2xs hover:border-sky-300 dark:hover:border-sky-700 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-mono font-bold text-slate-900 dark:text-white">
+                        {item.edfNumber}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        Pending
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
+                      <span className="text-sky-700 dark:text-sky-300 font-bold">
+                        Partially Received
+                      </span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        {receivedCount}/{totalCount} Items Received
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-sky-500 rounded-full"
+                        style={{
+                          width: `${Math.round((receivedCount / Math.max(totalCount, 1)) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 7-DAY EDF CREATION FREQUENCY LINE CHART (RECHARTS)                        */}

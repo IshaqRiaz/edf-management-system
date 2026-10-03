@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { EDF, Category } from '../types.ts';
+import { EDF, Category, EDFItem } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
 import { HighlightText } from './HighlightText.tsx';
 import { useTheme } from '../context/ThemeContext.tsx';
@@ -28,6 +28,12 @@ import {
   User,
   Layers,
   FileText,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Undo2,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 
 export const isEdfHighPriority = (requiredDate: string | Date, status?: string): boolean => {
@@ -50,6 +56,8 @@ interface EDFListProps {
   onEdit: (edf: EDF) => void;
   onDelete: (id: number) => void;
   onMarkStatus: (id: number, status: 'Received' | 'Completed' | 'Pending') => void;
+  onReceiveItems?: (edfId: number, itemIds: number[]) => Promise<void>;
+  onUndoItemReceived?: (edfId: number, itemId: number) => Promise<void>;
   onBulkAction: (ids: number[], action: 'mark-received' | 'mark-completed' | 'delete') => void;
   onOpenCreate: () => void;
   onExportCSV: (filtered: EDF[]) => void;
@@ -68,6 +76,8 @@ export const EDFList: React.FC<EDFListProps> = ({
   onEdit,
   onDelete,
   onMarkStatus,
+  onReceiveItems,
+  onUndoItemReceived,
   onBulkAction,
   onOpenCreate,
   onExportCSV,
@@ -84,6 +94,13 @@ export const EDFList: React.FC<EDFListProps> = ({
   const [priorityFilter, setPriorityFilter] = useState<'All' | 'High' | 'Normal'>('All');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [dateFilter, setDateFilter] = useState<string>('all'); // all, today, this-week, this-month
+
+  // Expandable row & inline item receiving states
+  const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+  const [isReceivingItems, setIsReceivingItems] = useState(false);
+  const [undoConfirmItem, setUndoConfirmItem] = useState<{ edfId: number; item: EDFItem } | null>(null);
+  const [isUndoingItem, setIsUndoingItem] = useState(false);
 
   // Total items currently classified as High Priority (due within 24 hours)
   const highPriorityCount = useMemo(() => {
@@ -182,6 +199,13 @@ export const EDFList: React.FC<EDFListProps> = ({
             <span>Received</span>
           </span>
         );
+      case 'Partially Received':
+        return (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 whitespace-nowrap">
+            <PackageCheck className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0" />
+            <span>Partially Received</span>
+          </span>
+        );
       case 'Overdue':
         return (
           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-300 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800 animate-pulse whitespace-nowrap">
@@ -197,6 +221,94 @@ export const EDFList: React.FC<EDFListProps> = ({
             <span>Pending</span>
           </span>
         );
+    }
+  };
+
+  // Compact receiving indicator (Requirement 5)
+  const renderReceivingBadge = (item: EDF) => {
+    const rawItems = item.items || [];
+    const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+    const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+    const isPartial = receivedCount > 0 && receivedCount < totalCount;
+    const allReceived = totalCount > 0 && receivedCount === totalCount;
+
+    if (isPartial || item.status === 'Partially Received') {
+      return (
+        <span
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-300 dark:border-sky-800 whitespace-nowrap"
+          title="Partially Received"
+        >
+          <PackageCheck className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0" />
+          <span>Partial: {receivedCount}/{totalCount} Received</span>
+        </span>
+      );
+    }
+
+    if (allReceived || item.status === 'Received' || item.status === 'Completed') {
+      return (
+        <span
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800 whitespace-nowrap"
+          title="All items received"
+        >
+          <CheckCircle2 className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
+          <span>{totalCount}/{totalCount} Received</span>
+        </span>
+      );
+    }
+
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+        title="Pending receiving"
+      >
+        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+        <span>0/{totalCount} Received</span>
+      </span>
+    );
+  };
+
+  // Toggle item selection in inline expanded row
+  const handleToggleItemInEdf = (itemId: number) => {
+    setSelectedItemIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  // Toggle select all pending items for an EDF
+  const handleToggleSelectAllInEdf = (items: EDFItem[]) => {
+    const pendingIds = items.filter((i) => i.status !== 'Received' && i.id).map((i) => i.id!);
+    if (selectedItemIds.length === pendingIds.length && pendingIds.length > 0) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(pendingIds);
+    }
+  };
+
+  // Submit receiving in inline expanded row
+  const handleSubmitInlineReceiving = async (edfId: number) => {
+    if (selectedItemIds.length === 0 || !onReceiveItems) return;
+    setIsReceivingItems(true);
+    try {
+      await onReceiveItems(edfId, selectedItemIds);
+      setSelectedItemIds([]);
+    } catch (err) {
+      console.error('Error submitting receiving:', err);
+    } finally {
+      setIsReceivingItems(false);
+    }
+  };
+
+  // Confirm undo receiving for an item
+  const handleConfirmInlineUndo = async () => {
+    if (!undoConfirmItem?.item.id || !onUndoItemReceived) return;
+    setIsUndoingItem(true);
+    try {
+      await onUndoItemReceived(undoConfirmItem.edfId, undoConfirmItem.item.id);
+      setUndoConfirmItem(null);
+    } catch (err) {
+      console.error('Error undoing item receiving:', err);
+    } finally {
+      setIsUndoingItem(false);
     }
   };
 
@@ -532,9 +644,9 @@ export const EDFList: React.FC<EDFListProps> = ({
                   const isHighPriority = isEdfHighPriority(item.requiredDate, item.status);
 
                   return (
-                    <tr
-                      key={item.id}
-                      className={`transition-colors group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
+                    <React.Fragment key={item.id}>
+                      <tr
+                        className={`transition-colors group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
                         isOverdue
                           ? 'bg-red-50/40 dark:bg-red-950/25 font-medium border-l-4 border-l-red-600'
                           : isHighPriority
@@ -612,9 +724,12 @@ export const EDFList: React.FC<EDFListProps> = ({
                         <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
                       </td>
 
-                      {/* 4. Remaining: Compact Status */}
-                      <td className="py-1.5 px-1 text-center whitespace-nowrap text-xs">
-                        {getStatusBadge(item.status, item.isOverdue)}
+                      {/* 4. Remaining: Compact Status & Receiving Indicator (Requirement 5) */}
+                      <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
+                        <div className="flex flex-col items-center gap-1">
+                          {getStatusBadge(item.status, item.isOverdue)}
+                          {renderReceivingBadge(item)}
+                        </div>
                       </td>
 
                       {/* 4. Remaining: Category with Domain Colors */}
@@ -654,6 +769,32 @@ export const EDFList: React.FC<EDFListProps> = ({
                       {/* 4. Remaining: Actions (Available to both Admin and Viewer) */}
                       <td className="py-2.5 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
+                          {/* Toggle Material Items Checklist (Item-level receiving for Admin & Viewer) */}
+                          <button
+                            onClick={() => {
+                              if (expandedRowId === item.id) {
+                                setExpandedRowId(null);
+                                setSelectedItemIds([]);
+                              } else {
+                                setExpandedRowId(item.id);
+                                setSelectedItemIds([]);
+                              }
+                            }}
+                            className={`p-1 rounded-lg text-xs font-semibold flex items-center gap-0.5 transition-colors cursor-pointer ${
+                              expandedRowId === item.id
+                                ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200'
+                                : 'text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                            title="Open item receiving checklist"
+                          >
+                            <PackageCheck className="w-3.5 h-3.5" />
+                            <ChevronDown
+                              className={`w-3 h-3 transition-transform ${
+                                expandedRowId === item.id ? 'rotate-180 text-indigo-600' : ''
+                              }`}
+                            />
+                          </button>
+
                           {/* View details */}
                           <button
                             onClick={() => onViewDetails(item)}
@@ -714,6 +855,167 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </div>
                       </td>
                     </tr>
+
+                    {/* Inline Material Items Checklist Row */}
+                    {expandedRowId === item.id && (
+                      <tr key={`expanded-${item.id}`} className="bg-indigo-50/20 dark:bg-slate-950/70 border-y-2 border-indigo-200 dark:border-indigo-900/60">
+                        <td colSpan={isAdmin ? 12 : 11} className="p-3 sm:p-5">
+                          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-950 shadow-sm space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+                              <div>
+                                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                  <span>Material Checklist — {item.edfNumber}</span>
+                                  {renderReceivingBadge(item)}
+                                </h4>
+                                <p className="text-[11px] text-slate-400">
+                                  Check individual arrived items. Both Admin and Viewer can mark items received.
+                                </p>
+                              </div>
+
+                              {item.items && item.items.filter((i) => i.status !== 'Received').length > 0 && onReceiveItems && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSubmitInlineReceiving(item.id)}
+                                  disabled={selectedItemIds.length === 0 || isReceivingItems}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                                >
+                                  {isReceivingItems ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Saving...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <PackageCheck className="w-3.5 h-3.5" />
+                                      <span>Mark Selected Items as Received ({selectedItemIds.length})</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Items Table */}
+                            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                              <table className="w-full text-left text-xs">
+                                <thead>
+                                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[10px]">
+                                    <th className="py-2 px-3 w-10 text-center">
+                                      <input
+                                        type="checkbox"
+                                        aria-label="Select all pending items"
+                                        checked={
+                                          (item.items || []).filter((i) => i.status !== 'Received').length > 0 &&
+                                          selectedItemIds.length === (item.items || []).filter((i) => i.status !== 'Received').length
+                                        }
+                                        onChange={() => handleToggleSelectAllInEdf(item.items || [])}
+                                        className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 accent-blue-600 cursor-pointer"
+                                      />
+                                    </th>
+                                    <th className="py-2 px-3">Material</th>
+                                    <th className="py-2 px-3 w-20 text-right">Unit</th>
+                                    <th className="py-2 px-3 w-20 text-right">Quantity</th>
+                                    <th className="py-2 px-3 w-28 text-center">Status</th>
+                                    <th className="py-2 px-3 min-w-[160px]">Receiving Info & Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                  {(item.items && item.items.length > 0
+                                    ? item.items
+                                    : [
+                                        {
+                                          id: 0,
+                                          itemDescription: item.materialList,
+                                          quantity: item.quantity,
+                                          unit: item.unit,
+                                          status: (item.status === 'Received' || item.status === 'Completed' ? 'Received' : 'Pending') as 'Pending' | 'Received',
+                                          receivedAt: null,
+                                          receivedBy: null,
+                                        } as EDFItem,
+                                      ]
+                                  ).map((it: EDFItem, idx) => {
+                                    const isReceived = it.status === 'Received';
+                                    const isChecked = Boolean(it.id && selectedItemIds.includes(it.id));
+
+                                    return (
+                                      <tr
+                                        key={it.id || idx}
+                                        className={
+                                          isReceived
+                                            ? 'bg-emerald-50/30 dark:bg-emerald-950/20'
+                                            : isChecked
+                                            ? 'bg-blue-50/40 dark:bg-blue-950/25'
+                                            : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/40'
+                                        }
+                                      >
+                                        <td className="py-2 px-3 text-center">
+                                          {isReceived ? (
+                                            <div className="w-3.5 h-3.5 rounded bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-2xs">
+                                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                            </div>
+                                          ) : it.id ? (
+                                            <input
+                                              type="checkbox"
+                                              checked={isChecked}
+                                              onChange={() => handleToggleItemInEdf(it.id!)}
+                                              className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 accent-blue-600 cursor-pointer"
+                                            />
+                                          ) : (
+                                            <span className="text-[10px] text-slate-400 font-mono">{idx + 1}</span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">
+                                          {it.itemDescription}
+                                        </td>
+                                        <td className="py-2 px-3 text-right text-slate-500">{it.unit}</td>
+                                        <td className="py-2 px-3 font-mono font-bold text-right text-slate-900 dark:text-white">
+                                          {it.quantity}
+                                        </td>
+                                        <td className="py-2 px-3 text-center whitespace-nowrap">
+                                          {isReceived ? (
+                                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                              <Check className="w-2.5 h-2.5" />
+                                              <span>Received</span>
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                              <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                              <span>Pending</span>
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3 text-[11px]">
+                                          {isReceived ? (
+                                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                                              <span className="text-slate-400 text-[10px]">
+                                                {it.receivedAt ? new Date(it.receivedAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recorded'}
+                                                {it.receivedBy && ` • ${it.receivedBy}`}
+                                              </span>
+                                              {it.id && onUndoItemReceived && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setUndoConfirmItem({ edfId: item.id, item: it })}
+                                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                                                >
+                                                  <Undo2 className="w-2.5 h-2.5" />
+                                                  <span>Undo</span>
+                                                </button>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <span className="text-slate-400 italic text-[10px]">Pending arrival</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })
               )}
@@ -765,9 +1067,10 @@ export const EDFList: React.FC<EDFListProps> = ({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                       {getPriorityBadge(item.priority, isHighPriority)}
                       {getStatusBadge(item.status, item.isOverdue)}
+                      {renderReceivingBadge(item)}
                     </div>
                   </div>
 
@@ -827,13 +1130,26 @@ export const EDFList: React.FC<EDFListProps> = ({
                   </div>
 
                   {/* Row 5: Action Buttons */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex-wrap">
                     <button
                       onClick={() => onViewDetails(item)}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 min-h-[40px] rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5 text-slate-500" />
                       <span>View Details</span>
+                    </button>
+
+                    {/* Toggle Items Checklist button */}
+                    <button
+                      onClick={() => {
+                        setExpandedRowId(expandedRowId === item.id ? null : item.id);
+                        setSelectedItemIds([]);
+                      }}
+                      className="flex items-center justify-center gap-1 py-2.5 px-3 min-h-[40px] rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                      title="Item receiving checklist"
+                    >
+                      <PackageCheck className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Checklist</span>
                     </button>
 
                     {/* Both Admin and Viewer can mark Received */}
@@ -843,7 +1159,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 min-h-[40px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
                       >
                         <PackageCheck className="w-3.5 h-3.5" />
-                        <span>Mark Received</span>
+                        <span>Mark All Received</span>
                       </button>
                     )}
 
@@ -870,6 +1186,82 @@ export const EDFList: React.FC<EDFListProps> = ({
                       </>
                     )}
                   </div>
+
+                  {/* Inline Material Items Checklist for Mobile */}
+                  {expandedRowId === item.id && (
+                    <div className="p-3 rounded-2xl bg-indigo-50/30 dark:bg-slate-950/80 border border-indigo-200 dark:border-indigo-900/60 space-y-2 mt-2">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          Material Checklist
+                        </span>
+                        {item.items && item.items.filter((i) => i.status !== 'Received').length > 0 && onReceiveItems && (
+                          <button
+                            type="button"
+                            onClick={() => handleSubmitInlineReceiving(item.id)}
+                            disabled={selectedItemIds.length === 0 || isReceivingItems}
+                            className="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-[11px] disabled:opacity-50"
+                          >
+                            Mark Selected ({selectedItemIds.length})
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5 divide-y divide-slate-100 dark:divide-slate-800">
+                        {(item.items || []).map((it, idx) => {
+                          const isReceived = it.status === 'Received';
+                          const isChecked = Boolean(it.id && selectedItemIds.includes(it.id));
+
+                          return (
+                            <div key={it.id || idx} className="pt-1.5 flex items-start justify-between gap-2 text-xs">
+                              <div className="flex items-start gap-2">
+                                {isReceived ? (
+                                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                ) : it.id ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleItemInEdf(it.id!)}
+                                    className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 accent-blue-600 shrink-0 mt-0.5"
+                                  />
+                                ) : null}
+                                <div>
+                                  <p className="font-semibold text-slate-800 dark:text-slate-200 leading-tight">
+                                    {it.itemDescription}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                    {it.quantity} {it.unit}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                {isReceived ? (
+                                  <div>
+                                    <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                      ✓ Received
+                                    </span>
+                                    {it.id && onUndoItemReceived && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setUndoConfirmItem({ edfId: item.id, item: it })}
+                                        className="block text-[10px] text-rose-600 font-bold hover:underline mt-0.5"
+                                      >
+                                        Undo
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                    Pending
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -892,6 +1284,64 @@ export const EDFList: React.FC<EDFListProps> = ({
           </span>
         </div>
       </div>
+
+      {/* CONFIRMATION DIALOG FOR "UNDO RECEIVED" (Requirement 10) */}
+      {undoConfirmItem && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-100">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                  Undo Item Receiving?
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Are you sure you want to mark{' '}
+                  <strong className="text-slate-900 dark:text-white">
+                    &quot;{undoConfirmItem.item.itemDescription}&quot;
+                  </strong>{' '}
+                  as <strong>Pending</strong> again?
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  This will safely recalculate the EDF delivery status without removing any past receiving history.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={isUndoingItem}
+                onClick={() => setUndoConfirmItem(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isUndoingItem}
+                onClick={handleConfirmInlineUndo}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isUndoingItem ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Reverting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Undo2 className="w-3.5 h-3.5" />
+                    <span>Confirm Undo</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -543,12 +543,38 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                             </span>
                           </div>
 
-                          {/* Overdue or Status Pill */}
-                          {isOverdue && col.key !== 'Completed' && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider bg-red-50 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-200 dark:border-red-900 animate-pulse-subtle">
-                              Overdue
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {/* Overdue or Status Pill */}
+                            {isOverdue && col.key !== 'Completed' && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider bg-red-50 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-200 dark:border-red-900 animate-pulse-subtle">
+                                Overdue
+                              </span>
+                            )}
+
+                            {/* Partially Received indicator (Requirement 12: A partially received EDF should remain in Pending column but display: 5/10 Received) */}
+                            {(() => {
+                              const rawItems = edf.items || [];
+                              const totalCount = edf.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+                              const receivedCount = edf.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+                              const isPartial = receivedCount > 0 && receivedCount < totalCount;
+
+                              if (isPartial || edf.status === 'Partially Received') {
+                                return (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide bg-sky-100 text-sky-800 dark:bg-sky-950/90 dark:text-sky-300 border border-sky-300 dark:border-sky-800 shadow-2xs">
+                                    {receivedCount}/{totalCount} Received
+                                  </span>
+                                );
+                              }
+                              if (col.key === 'Received') {
+                                return (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                                    {totalCount}/{totalCount} Received
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
                         </div>
 
                         {/* Materials Description */}

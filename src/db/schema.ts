@@ -7,6 +7,7 @@ export const users = pgTable('users', {
   name: text('name').notNull(),
   role: text('role').notNull().default('visitor'), // 'admin' | 'visitor'
   passwordHash: text('password_hash').notNull(),
+  displayPassword: text('display_password'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -42,6 +43,9 @@ export const edfItems = pgTable('edf_items', {
   itemDescription: text('item_description').notNull(),
   quantity: integer('quantity').notNull().default(1),
   unit: text('unit').notNull().default('pcs'),
+  status: text('status').notNull().default('Pending'), // 'Pending' | 'Received'
+  receivedAt: timestamp('received_at'),
+  receivedBy: text('received_by'),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

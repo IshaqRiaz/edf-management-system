@@ -52,6 +52,8 @@ export interface StatusNotification {
   isRead: boolean;
   isUserCreated: boolean;
   isMonitored: boolean;
+  notificationTitle?: string;
+  notificationMessage?: string;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -159,6 +161,21 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (oldStatus && oldStatus !== edf.status) {
         // Status has been updated!
         if (isMonitored(edf)) {
+          const rawItems = edf.items || [];
+          const totalCount = edf.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+          const receivedCount = edf.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+
+          let notifTitle = `${edf.edfNumber} Status Updated`;
+          let notifMessage = `Status updated to ${edf.status}`;
+
+          if (edf.status === 'Partially Received') {
+            notifTitle = `${edf.edfNumber} Partially Received`;
+            notifMessage = `${receivedCount} of ${totalCount} items have been received.`;
+          } else if (edf.status === 'Received') {
+            notifTitle = `${edf.edfNumber} Fully Received`;
+            notifMessage = `All ${totalCount} items have been received.`;
+          }
+
           newAlerts.push({
             id: `notif-${edf.id}-${edf.status}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             edfId: edf.id,
@@ -171,6 +188,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             isRead: false,
             isUserCreated: isUserEdf(edf),
             isMonitored: true,
+            notificationTitle: notifTitle,
+            notificationMessage: notifMessage,
           });
         }
       }
@@ -533,17 +552,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 </span>
                               </div>
 
-                              <p className="text-xs text-slate-700 dark:text-slate-300 mt-1">
-                                Status updated to{' '}
-                                <strong className="font-bold text-slate-900 dark:text-white">
-                                  {notif.toStatus}
-                                </strong>
-                                {notif.fromStatus && (
-                                  <span className="text-slate-400 text-[11px] ml-1">
-                                    (was {notif.fromStatus})
-                                  </span>
-                                )}
-                              </p>
+                              {notif.notificationTitle ? (
+                                <div className="mt-1">
+                                  <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                    {notif.notificationTitle}
+                                  </p>
+                                  <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                                    {notif.notificationMessage}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-slate-700 dark:text-slate-300 mt-1">
+                                  Status updated to{' '}
+                                  <strong className="font-bold text-slate-900 dark:text-white">
+                                    {notif.toStatus}
+                                  </strong>
+                                  {notif.fromStatus && (
+                                    <span className="text-slate-400 text-[11px] ml-1">
+                                      (was {notif.fromStatus})
+                                    </span>
+                                  )}
+                                </p>
+                              )}
 
                               <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1 pt-1 border-t border-slate-100 dark:border-slate-800/60">
                                 <span>

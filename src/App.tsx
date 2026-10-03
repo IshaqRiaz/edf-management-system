@@ -277,6 +277,62 @@ const MainLayout: React.FC = () => {
     }
   };
 
+  // Mark selected items as Received (Partial or Full receiving)
+  const handleReceiveItems = async (edfId: number, itemIds: number[]) => {
+    try {
+      const res = await fetch(`/api/edfs/${edfId}/receive-items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ itemIds }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to mark items as received', 'error');
+        return;
+      }
+
+      await refreshAllData();
+      if (viewingEdf && viewingEdf.id === edfId && data.edf) {
+        setViewingEdf(data.edf);
+      }
+      showToast(data.message || 'Selected items marked as received', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Error receiving items', 'error');
+    }
+  };
+
+  // Undo receiving for an individual item
+  const handleUndoItemReceived = async (edfId: number, itemId: number) => {
+    try {
+      const res = await fetch(`/api/edfs/${edfId}/undo-item-received`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ itemId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to undo item receiving', 'error');
+        return;
+      }
+
+      await refreshAllData();
+      if (viewingEdf && viewingEdf.id === edfId && data.edf) {
+        setViewingEdf(data.edf);
+      }
+      showToast(data.message || 'Item status reverted to pending', 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Error reverting item status', 'error');
+    }
+  };
+
   // Bulk actions
   const handleBulkAction = async (
     ids: number[],
@@ -318,24 +374,38 @@ const MainLayout: React.FC = () => {
       'Issue Date',
       'Required Date',
       'Status',
+      'Receiving Progress',
       'Material Summary',
       'Quantity',
       'Unit',
       'Remarks',
     ];
 
-    const rows = listToExport.map((e) => [
-      `"${e.edfNumber}"`,
-      `"${e.requesterName.replace(/"/g, '""')}"`,
-      `"${e.category}"`,
-      `"${new Date(e.issueDate).toLocaleDateString()}"`,
-      `"${new Date(e.requiredDate).toLocaleString()}"`,
-      `"${e.isOverdue ? 'Overdue' : e.status}"`,
-      `"${e.materialList.replace(/"/g, '""')}"`,
-      e.quantity,
-      `"${e.unit}"`,
-      `"${(e.remarks || '').replace(/"/g, '""')}"`,
-    ]);
+    const rows = listToExport.map((e) => {
+      const rawItems = e.items || [];
+      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+      const receivedCount = e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+      const receivingProgress =
+        e.status === 'Received' || receivedCount === totalCount
+          ? `${totalCount}/${totalCount} Received`
+          : receivedCount > 0
+          ? `Partial: ${receivedCount}/${totalCount} Received`
+          : `0/${totalCount} Received`;
+
+      return [
+        `"${e.edfNumber}"`,
+        `"${(e.requesterName || '').replace(/"/g, '""')}"`,
+        `"${e.category}"`,
+        `"${new Date(e.issueDate).toLocaleDateString()}"`,
+        `"${new Date(e.requiredDate).toLocaleString()}"`,
+        `"${e.isOverdue ? 'Overdue' : e.status}"`,
+        `"${receivingProgress}"`,
+        `"${(e.materialList || '').replace(/"/g, '""')}"`,
+        e.quantity,
+        `"${e.unit}"`,
+        `"${(e.remarks || '').replace(/"/g, '""')}"`,
+      ];
+    });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -437,6 +507,8 @@ const MainLayout: React.FC = () => {
               onEdit={(item) => setEditingEdf(item)}
               onDelete={handleDeleteEDF}
               onMarkStatus={handleMarkStatus}
+              onReceiveItems={handleReceiveItems}
+              onUndoItemReceived={handleUndoItemReceived}
               onBulkAction={handleBulkAction}
               onOpenCreate={() => setIsCreateModalOpen(true)}
               onExportCSV={handleExportCSV}
@@ -508,6 +580,8 @@ const MainLayout: React.FC = () => {
           onClose={() => setViewingEdf(null)}
           onEdit={(item) => setEditingEdf(item)}
           onMarkStatus={handleMarkStatus}
+          onReceiveItems={handleReceiveItems}
+          onUndoItemReceived={handleUndoItemReceived}
           isAdmin={isAdmin}
         />
       )}

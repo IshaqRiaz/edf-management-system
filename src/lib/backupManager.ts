@@ -309,6 +309,9 @@ export async function restoreFromBackupIfNeeded(): Promise<boolean> {
                 itemDescription: item.itemDescription,
                 quantity: item.quantity,
                 unit: item.unit,
+                status: item.status || 'Pending',
+                receivedAt: item.receivedAt ? new Date(item.receivedAt) : null,
+                receivedBy: item.receivedBy || null,
               })
               .catch(() => {});
           }

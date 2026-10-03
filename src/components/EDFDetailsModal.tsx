@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { EDF, EDFStatusHistory } from '../types.ts';
+import { EDF, EDFItem, EDFStatusHistory } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
 import { isEdfHighPriority } from './EDFList.tsx';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
@@ -18,6 +18,13 @@ import {
   History,
   ArrowRight,
   Sparkles,
+  Undo2,
+  Check,
+  CheckSquare,
+  Square,
+  AlertCircle,
+  HelpCircle,
+  Loader2,
 } from 'lucide-react';
 
 interface EDFDetailsModalProps {
@@ -25,6 +32,8 @@ interface EDFDetailsModalProps {
   onClose: () => void;
   onEdit?: (edf: EDF) => void;
   onMarkStatus?: (id: number, status: 'Received' | 'Completed' | 'Pending') => void;
+  onReceiveItems?: (edfId: number, itemIds: number[]) => Promise<void>;
+  onUndoItemReceived?: (edfId: number, itemId: number) => Promise<void>;
   isAdmin: boolean;
 }
 
@@ -33,11 +42,18 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
   onClose,
   onEdit,
   onMarkStatus,
+  onReceiveItems,
+  onUndoItemReceived,
   isAdmin,
 }) => {
-  // Unconditionally call hooks at the top level
   const [history, setHistory] = useState<EDFStatusHistory[]>(edf?.statusHistory || []);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Item-level partial receiving states
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+  const [isReceivingItems, setIsReceivingItems] = useState(false);
+  const [undoItemConfirm, setUndoItemConfirm] = useState<EDFItem | null>(null);
+  const [isUndoingItem, setIsUndoingItem] = useState(false);
 
   useEffect(() => {
     if (!edf?.id) {
@@ -93,6 +109,90 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
 
   if (!edf) return null;
 
+  // Material items list
+  const rawItems: EDFItem[] =
+    edf.items && edf.items.length > 0
+      ? edf.items
+      : [
+          {
+            id: 0,
+            edfId: edf.id,
+            itemDescription: edf.materialList,
+            quantity: edf.quantity,
+            unit: edf.unit,
+            status:
+              edf.status === 'Received' || edf.status === 'Completed'
+                ? 'Received'
+                : 'Pending',
+          },
+        ];
+
+  const totalItemsCount = rawItems.length;
+  const receivedItemsCount = rawItems.filter((i) => i.status === 'Received').length;
+  const pendingItems = rawItems.filter((i) => i.status !== 'Received');
+  const allReceived = totalItemsCount > 0 && receivedItemsCount === totalItemsCount;
+  const isPartiallyReceived = receivedItemsCount > 0 && receivedItemsCount < totalItemsCount;
+
+  // Status text according to Requirement 4
+  const getStatusDisplayLabel = () => {
+    if (edf.status === 'Completed') {
+      return `Completed — ${totalItemsCount} of ${totalItemsCount} received`;
+    }
+    if (allReceived || edf.status === 'Received') {
+      return `Received — ${totalItemsCount} of ${totalItemsCount} items received`;
+    }
+    if (isPartiallyReceived || edf.status === 'Partially Received') {
+      return `Partially Received — ${receivedItemsCount} of ${totalItemsCount} items received`;
+    }
+    return `Pending — 0 of ${totalItemsCount} received`;
+  };
+
+  // Toggle selection for a single pending item
+  const handleToggleItemSelect = (itemId?: number) => {
+    if (!itemId) return;
+    setSelectedItemIds((prev) =>
+      prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]
+    );
+  };
+
+  // Select all or deselect all pending items
+  const handleToggleSelectAll = () => {
+    const selectablePendingIds = pendingItems.map((i) => i.id!).filter(Boolean);
+    if (selectedItemIds.length === selectablePendingIds.length && selectablePendingIds.length > 0) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(selectablePendingIds);
+    }
+  };
+
+  // Submit selected items as Received
+  const handleMarkSelectedAsReceived = async () => {
+    if (selectedItemIds.length === 0 || !onReceiveItems) return;
+    setIsReceivingItems(true);
+    try {
+      await onReceiveItems(edf.id, selectedItemIds);
+      setSelectedItemIds([]);
+    } catch (err) {
+      console.error('Error marking items received:', err);
+    } finally {
+      setIsReceivingItems(false);
+    }
+  };
+
+  // Undo receiving for a single item with confirmation
+  const handleConfirmUndo = async () => {
+    if (!undoItemConfirm?.id || !onUndoItemReceived) return;
+    setIsUndoingItem(true);
+    try {
+      await onUndoItemReceived(edf.id, undoItemConfirm.id);
+      setUndoItemConfirm(null);
+    } catch (err) {
+      console.error('Error undoing item receiving:', err);
+    } finally {
+      setIsUndoingItem(false);
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -103,6 +203,8 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
         return 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
       case 'Received':
         return 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
+      case 'Partially Received':
+        return 'bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800';
       case 'Overdue':
         return 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800';
       case 'Pending':
@@ -132,6 +234,12 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
           bg: 'bg-indigo-600 ring-4 ring-indigo-50 dark:ring-indigo-950/60',
           text: 'text-white',
         };
+      case 'Partially Received':
+        return {
+          icon: PackageCheck,
+          bg: 'bg-sky-600 ring-4 ring-sky-50 dark:ring-sky-950/60',
+          text: 'text-white',
+        };
       case 'Overdue':
         return {
           icon: AlertTriangle,
@@ -149,21 +257,24 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-2xl w-full my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full my-6 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/40">
+        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/40">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 font-bold">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 font-bold shrink-0">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-lg font-black text-slate-900 dark:text-white font-mono">
                   {edf.edfNumber}
                 </h3>
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getCategoryBadgeClass(edf.category)}`}>
                   {edf.category}
+                </span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusBadgeClass(edf.status)}`}>
+                  {edf.status}
                 </span>
               </div>
               <p className="text-xs text-slate-400">
@@ -175,14 +286,14 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold"
+              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer"
               title="Print Record"
             >
               <Printer className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -190,36 +301,64 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-          {/* Status & Live Countdown Box */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-indigo-50/30 dark:from-slate-950 dark:to-indigo-950/20 border border-indigo-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400">
-                Live Status & Schedule
-              </span>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                  Status: {edf.isOverdue ? 'Overdue' : edf.status}
+        <div className="p-5 sm:p-6 space-y-6 max-h-[78vh] overflow-y-auto">
+          {/* Status & Live Countdown Box with Receiving Progress */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-indigo-50/30 dark:from-slate-950 dark:to-indigo-950/20 border border-indigo-100 dark:border-slate-800 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400">
+                  Delivery Status & Schedule
                 </span>
-                {isEdfHighPriority(edf.requiredDate, edf.status) && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-300 dark:border-red-800 shadow-2xs animate-pulse">
-                    <AlertTriangle className="w-3 h-3 text-red-600 dark:text-red-400 fill-red-500/20 shrink-0" />
-                    <span>High Priority (&lt;24h)</span>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    {getStatusDisplayLabel()}
                   </span>
-                )}
+                  {isEdfHighPriority(edf.requiredDate, edf.status) && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-300 dark:border-red-800 shadow-2xs animate-pulse">
+                      <AlertTriangle className="w-3 h-3 text-red-600 dark:text-red-400 fill-red-500/20 shrink-0" />
+                      <span>High Priority (&lt;24h)</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 block mb-1">
+                  Required Date Countdown
+                </span>
+                <TimerBadge requiredDate={edf.requiredDate} status={edf.status} />
               </div>
             </div>
 
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 block mb-1">
-                Required Date Countdown
-              </span>
-              <TimerBadge requiredDate={edf.requiredDate} status={edf.status} />
+            {/* Receiving Progress Bar */}
+            <div className="space-y-1 pt-1 border-t border-indigo-100/60 dark:border-slate-800/80">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-600 dark:text-slate-400">
+                  Item Receiving Progress
+                </span>
+                <span className="font-mono font-bold text-slate-900 dark:text-white text-[11px]">
+                  {receivedItemsCount} / {totalItemsCount} Items Received ({totalItemsCount > 0 ? Math.round((receivedItemsCount / totalItemsCount) * 100) : 0}%)
+                </span>
+              </div>
+              <div className="h-2.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    allReceived
+                      ? 'bg-emerald-500'
+                      : isPartiallyReceived
+                      ? 'bg-sky-500'
+                      : 'bg-amber-400'
+                  }`}
+                  style={{
+                    width: `${totalItemsCount > 0 ? (receivedItemsCount / totalItemsCount) * 100 : 0}%`,
+                  }}
+                />
+              </div>
             </div>
           </div>
 
           {/* Details Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800">
             <div>
               <span className="text-[11px] font-semibold text-slate-400">Requester</span>
               <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
@@ -269,55 +408,219 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* Materials Table - Order: Material -> Unit -> Quantity */}
-          <div>
-            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-              Demand Form Material List
-            </h4>
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[10px]">
-                    <th className="py-2.5 px-4 w-12 text-center">#</th>
-                    <th className="py-2.5 px-4">Material / Item Description</th>
-                    <th className="py-2.5 px-4 w-28 text-right">Unit</th>
-                    <th className="py-2.5 px-4 w-28 text-right">Quantity</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {edf.items && edf.items.length > 0 ? (
-                    edf.items.map((item, i) => (
-                      <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                        <td className="py-2.5 px-4 text-center text-slate-400 font-mono">
-                          {i + 1}
-                        </td>
-                        <td className="py-2.5 px-4 font-medium text-slate-800 dark:text-slate-200">
-                          {item.itemDescription}
-                        </td>
-                        <td className="py-2.5 px-4 font-medium text-right text-slate-500">
-                          {item.unit}
-                        </td>
-                        <td className="py-2.5 px-4 font-mono font-bold text-right text-slate-900 dark:text-white">
-                          {item.quantity}
-                        </td>
-                      </tr>
-                    ))
+          {/* ITEM-LEVEL RECEIVING SYSTEM (Requirement 1, 2, 3, 8, 9, 10) */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span>Material Items & Receiving Checklist</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    {receivedItemsCount} of {totalItemsCount} Received
+                  </span>
+                </h4>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Check individual items as they arrive. Both Admin and Viewer can mark items received.
+                </p>
+              </div>
+
+              {/* Mark Selected Button */}
+              {pendingItems.length > 0 && onReceiveItems && (
+                <button
+                  type="button"
+                  onClick={handleMarkSelectedAsReceived}
+                  disabled={selectedItemIds.length === 0 || isReceivingItems}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-sm transition-all cursor-pointer shrink-0"
+                >
+                  {isReceivingItems ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Receiving...</span>
+                    </>
                   ) : (
-                    <tr>
-                      <td className="py-2.5 px-4 text-center text-slate-400 font-mono">1</td>
-                      <td className="py-2.5 px-4 font-medium text-slate-800 dark:text-slate-200">
-                        {edf.materialList}
-                      </td>
-                      <td className="py-2.5 px-4 font-medium text-right text-slate-500">
-                        {edf.unit}
-                      </td>
-                      <td className="py-2.5 px-4 font-mono font-bold text-right text-slate-900 dark:text-white">
-                        {edf.quantity}
-                      </td>
-                    </tr>
+                    <>
+                      <PackageCheck className="w-4 h-4" />
+                      <span>
+                        Mark Selected Items as Received
+                        {selectedItemIds.length > 0 && ` (${selectedItemIds.length})`}
+                      </span>
+                    </>
                   )}
-                </tbody>
-              </table>
+                </button>
+              )}
+            </div>
+
+            {/* Checklist Table */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
+                      {/* Checkbox column */}
+                      <th className="py-2.5 px-3.5 w-12 text-center">
+                        {pendingItems.length > 0 ? (
+                          <input
+                            type="checkbox"
+                            aria-label="Select all pending items"
+                            checked={
+                              pendingItems.length > 0 &&
+                              selectedItemIds.length === pendingItems.map((i) => i.id!).filter(Boolean).length
+                            }
+                            onChange={handleToggleSelectAll}
+                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 accent-blue-600 cursor-pointer"
+                            title="Select all pending items"
+                          />
+                        ) : (
+                          <Check className="w-4 h-4 text-emerald-600 mx-auto" />
+                        )}
+                      </th>
+                      <th className="py-2.5 px-3.5">Material</th>
+                      <th className="py-2.5 px-3.5 w-24 text-right">Unit</th>
+                      <th className="py-2.5 px-3.5 w-24 text-right">Quantity</th>
+                      <th className="py-2.5 px-3.5 w-28 text-center">Status</th>
+                      <th className="py-2.5 px-3.5 min-w-[180px]">Receiving Info & Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {rawItems.map((item, i) => {
+                      const isReceived = item.status === 'Received';
+                      const isChecked = Boolean(item.id && selectedItemIds.includes(item.id));
+
+                      return (
+                        <tr
+                          key={item.id || i}
+                          className={`transition-colors ${
+                            isReceived
+                              ? 'bg-emerald-50/30 dark:bg-emerald-950/20 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30'
+                              : isChecked
+                              ? 'bg-blue-50/40 dark:bg-blue-950/25 hover:bg-blue-50/60'
+                              : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40'
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <td className="py-2.5 px-3.5 text-center">
+                            {isReceived ? (
+                              <div
+                                className="w-4 h-4 rounded bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-2xs"
+                                title="Received"
+                              >
+                                <Check className="w-3 h-3 stroke-[3]" />
+                              </div>
+                            ) : item.id ? (
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleItemSelect(item.id)}
+                                className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 accent-blue-600 cursor-pointer"
+                                aria-label={`Select ${item.itemDescription}`}
+                              />
+                            ) : (
+                              <span className="text-slate-300 dark:text-slate-600 font-mono text-[10px]">
+                                {i + 1}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Material Description */}
+                          <td className="py-2.5 px-3.5 font-medium text-slate-800 dark:text-slate-200">
+                            <span className={isReceived ? 'font-semibold text-slate-900 dark:text-white' : ''}>
+                              {item.itemDescription}
+                            </span>
+                          </td>
+
+                          {/* Unit */}
+                          <td className="py-2.5 px-3.5 font-medium text-right text-slate-500">
+                            {item.unit}
+                          </td>
+
+                          {/* Quantity */}
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-right text-slate-900 dark:text-white">
+                            {item.quantity}
+                          </td>
+
+                          {/* Item Status */}
+                          <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                            {isReceived ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                <Check className="w-3 h-3" />
+                                <span>Received</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span>Pending</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Receiving Info & Controlled Undo Option */}
+                          <td className="py-2.5 px-3.5 text-[11px]">
+                            {isReceived ? (
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="text-slate-500 dark:text-slate-400">
+                                  <span>
+                                    {item.receivedAt
+                                      ? new Date(item.receivedAt).toLocaleDateString([], {
+                                          month: 'short',
+                                          day: 'numeric',
+                                        }) +
+                                        ' ' +
+                                        new Date(item.receivedAt).toLocaleTimeString([], {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })
+                                      : 'Recorded'}
+                                  </span>
+                                  {item.receivedBy && (
+                                    <span className="text-slate-400 block text-[10px]">
+                                      by {item.receivedBy}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {item.id && onUndoItemReceived && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setUndoItemConfirm(item)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-rose-600 hover:text-rose-800 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[10px] font-bold transition-colors cursor-pointer border border-rose-200 dark:border-rose-900"
+                                    title="Undo receiving with confirmation"
+                                  >
+                                    <Undo2 className="w-3 h-3" />
+                                    <span>Undo Received</span>
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">
+                                Awaiting arrival
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Footer Helper */}
+              {pendingItems.length > 0 && (
+                <div className="p-3 bg-slate-50/70 dark:bg-slate-950/40 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <span className="text-slate-500">
+                    {selectedItemIds.length} of {pendingItems.length} pending items checked
+                  </span>
+                  {selectedItemIds.length > 0 && onReceiveItems && (
+                    <button
+                      type="button"
+                      onClick={handleMarkSelectedAsReceived}
+                      disabled={isReceivingItems}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-all"
+                    >
+                      <PackageCheck className="w-3.5 h-3.5" />
+                      <span>Submit {selectedItemIds.length} Received Item{selectedItemIds.length > 1 ? 's' : ''}</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -333,7 +636,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             </div>
           )}
 
-          {/* Activity Timeline Section */}
+          {/* Activity Timeline Section (Includes history of item receiving & status transitions) */}
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -342,10 +645,10 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                    Activity Timeline
+                    Activity & Receiving Timeline
                   </h4>
                   <p className="text-[11px] text-slate-400">
-                    Status change history and lifecycle events
+                    Audit log of status updates, item arrivals, and coordinator changes
                   </p>
                 </div>
               </div>
@@ -435,7 +738,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                         )}
 
                         <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1.5">
-                          <span className="text-slate-400">Changed by:</span>
+                          <span className="text-slate-400">Recorded by:</span>
                           <span className="font-semibold text-slate-700 dark:text-slate-300">
                             {event.changedBy || 'System'}
                           </span>
@@ -464,7 +767,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             )}
 
             <div className="flex items-center gap-2 ml-auto">
-              {/* Mark as Received - available to both Admin and Viewer */}
+              {/* Mark All as Received - available to both Admin and Viewer */}
               {edf.status !== 'Received' && edf.status !== 'Completed' && (
                 <button
                   onClick={() => {
@@ -472,10 +775,10 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                     onClose();
                   }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
-                  title="Mark as Received (Stops live timer)"
+                  title="Mark entire EDF as Received (Stops live timer)"
                 >
                   <PackageCheck className="w-4 h-4" />
-                  <span>Mark as Received</span>
+                  <span>Mark All as Received</span>
                 </button>
               )}
 
@@ -495,6 +798,64 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* CONFIRMATION DIALOG FOR "UNDO RECEIVED" (Requirement 10) */}
+      {undoItemConfirm && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-100">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                  Undo Item Receiving?
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Are you sure you want to mark{' '}
+                  <strong className="text-slate-900 dark:text-white">
+                    &quot;{undoItemConfirm.itemDescription}&quot;
+                  </strong>{' '}
+                  as <strong>Pending</strong> again?
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  This will safely recalculate the EDF&apos;s delivery status without removing any past receiving history.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                disabled={isUndoingItem}
+                onClick={() => setUndoItemConfirm(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isUndoingItem}
+                onClick={handleConfirmUndo}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isUndoingItem ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Reverting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Undo2 className="w-3.5 h-3.5" />
+                    <span>Confirm Undo</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

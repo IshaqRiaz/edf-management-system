@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { EDF, Category, EDFItem, EDFPriority } from '../types.ts';
+import { EDF, Category, EDFItem, EDFPriority, EDFStatus } from '../types.ts';
 import { X, Plus, Trash2, CheckCircle2, Sparkles, Clock, AlertTriangle } from 'lucide-react';
 import { RequesterDropdown } from './RequesterDropdown.tsx';
 
@@ -25,7 +25,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
   const [category, setCategory] = useState('HVAC');
   const [issueDate, setIssueDate] = useState('');
   const [requiredDate, setRequiredDate] = useState('');
-  const [status, setStatus] = useState<'Pending' | 'Received' | 'Completed' | 'Overdue'>('Pending');
+  const [status, setStatus] = useState<EDFStatus>('Pending');
   const [priority, setPriority] = useState<EDFPriority>('Medium');
   const [remarks, setRemarks] = useState('');
   const [items, setItems] = useState<EDFItem[]>([
