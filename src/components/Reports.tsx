@@ -454,7 +454,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 </span>
                 <span className="text-xs text-rose-500 font-bold">Past Deadline</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-2 font-medium">Requires priority coordinator action</p>
+              <p className="text-[11px] text-slate-400 mt-2 font-medium">Requires prompt coordinator action</p>
             </div>
           </div>
 

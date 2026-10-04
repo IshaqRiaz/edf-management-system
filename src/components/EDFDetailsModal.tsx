@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { EDF, EDFItem, EDFStatusHistory } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
-import { isEdfHighPriority } from './EDFList.tsx';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
 import {
   X,
@@ -313,12 +312,6 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                   <span className="text-sm font-extrabold text-slate-900 dark:text-white">
                     {getStatusDisplayLabel()}
                   </span>
-                  {isEdfHighPriority(edf.requiredDate, edf.status) && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-red-100 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-300 dark:border-red-800 shadow-2xs animate-pulse">
-                      <AlertTriangle className="w-3 h-3 text-red-600 dark:text-red-400 fill-red-500/20 shrink-0" />
-                      <span>High Priority (&lt;24h)</span>
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -357,8 +350,8 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* Details Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800">
+          {/* Details Grid (Clean 4-Column Layout) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800">
             <div>
               <span className="text-[11px] font-semibold text-slate-400">Requester</span>
               <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
@@ -371,26 +364,6 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
               <p className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
                 {edf.category}
               </p>
-            </div>
-
-            <div>
-              <span className="text-[11px] font-semibold text-slate-400">Priority Level</span>
-              <div className="mt-1">
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                    (edf.priority || 'Medium') === 'High'
-                      ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800'
-                      : (edf.priority || 'Medium') === 'Low'
-                      ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
-                      : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800'
-                  }`}
-                >
-                  {(edf.priority || 'Medium') === 'High' && (
-                    <AlertTriangle className="w-3 h-3 text-red-600 dark:text-red-400 shrink-0" />
-                  )}
-                  <span>{edf.priority || 'Medium'}</span>
-                </span>
-              </div>
             </div>
 
             <div>

@@ -36,7 +36,7 @@ const initialStats: DashboardStats = {
 };
 
 const MainLayout: React.FC = () => {
-  const { user, token, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, token, isAdmin, isLoading: authLoading, updateUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -539,7 +539,16 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'users' && isAdmin && (
-            <UserManager currentUserId={user.id} />
+            <UserManager
+              currentUserId={user.id}
+              onCurrentUserUpdated={(updatedUser) => {
+                updateUser({
+                  ...user,
+                  name: updatedUser.name,
+                  role: updatedUser.role,
+                });
+              }}
+            />
           )}
 
           {activeTab === 'reports' && (

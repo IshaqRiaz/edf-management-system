@@ -36,15 +36,14 @@ import {
   Loader2,
 } from 'lucide-react';
 
-export const isEdfHighPriority = (requiredDate: string | Date, status?: string): boolean => {
+export const isDueWithin24Hours = (requiredDate: string | Date, status?: string): boolean => {
   if (status === 'Received' || status === 'Completed') return false;
   if (!requiredDate) return false;
   const reqTime = new Date(requiredDate).getTime();
   if (isNaN(reqTime)) return false;
   const now = Date.now();
   const diffMs = reqTime - now;
-  // Automatically labeled as High Priority if required date is within 24 hours
-  return diffMs <= 24 * 60 * 60 * 1000;
+  return diffMs <= 24 * 60 * 60 * 1000 && diffMs > 0;
 };
 
 interface EDFListProps {
@@ -91,7 +90,6 @@ export const EDFList: React.FC<EDFListProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
   const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
   const [overdueOnly, setOverdueOnly] = useState<boolean>(initialOverdueOnly);
-  const [priorityFilter, setPriorityFilter] = useState<'All' | 'High' | 'Normal'>('All');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [dateFilter, setDateFilter] = useState<string>('all'); // all, today, this-week, this-month
 
@@ -101,11 +99,6 @@ export const EDFList: React.FC<EDFListProps> = ({
   const [isReceivingItems, setIsReceivingItems] = useState(false);
   const [undoConfirmItem, setUndoConfirmItem] = useState<{ edfId: number; item: EDFItem } | null>(null);
   const [isUndoingItem, setIsUndoingItem] = useState(false);
-
-  // Total items currently classified as High Priority (due within 24 hours)
-  const highPriorityCount = useMemo(() => {
-    return edfs.filter((item) => isEdfHighPriority(item.requiredDate, item.status)).length;
-  }, [edfs]);
 
   // Filtered EDFs
   const filteredEdfs = useMemo(() => {
@@ -122,15 +115,6 @@ export const EDFList: React.FC<EDFListProps> = ({
 
       // Overdue filter
       if (overdueOnly && item.status !== 'Overdue' && !item.isOverdue) {
-        return false;
-      }
-
-      // Priority filter (High priority: due within 24 hours)
-      const isHigh = isEdfHighPriority(item.requiredDate, item.status);
-      if (priorityFilter === 'High' && !isHigh) {
-        return false;
-      }
-      if (priorityFilter === 'Normal' && isHigh) {
         return false;
       }
 
@@ -165,7 +149,7 @@ export const EDFList: React.FC<EDFListProps> = ({
 
       return true;
     });
-  }, [edfs, selectedCategory, selectedStatus, overdueOnly, priorityFilter, search, dateFilter]);
+  }, [edfs, selectedCategory, selectedStatus, overdueOnly, search, dateFilter]);
 
   // Bulk selection handlers
   const handleSelectAll = () => {
@@ -312,32 +296,6 @@ export const EDFList: React.FC<EDFListProps> = ({
     }
   };
 
-  const getPriorityBadge = (priority?: string, isHighPriorityAuto?: boolean) => {
-    if (isHighPriorityAuto || priority === 'High') {
-      return (
-        <span
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-black tracking-wide bg-red-100 text-red-700 dark:bg-red-950/90 dark:text-red-300 border border-red-300 dark:border-red-800 shadow-2xs whitespace-nowrap"
-          title="High Priority: Required date is within 24 hours"
-        >
-          <AlertTriangle className="w-3 h-3 text-red-600 dark:text-red-400 fill-red-500/20 shrink-0" />
-          <span>High</span>
-        </span>
-      );
-    }
-    if (priority === 'Low') {
-      return (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 whitespace-nowrap">
-          Low
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800 whitespace-nowrap">
-        Medium
-      </span>
-    );
-  };
-
   const getCategoryColor = (cat: string) => {
     return getCategoryBadgeClass(cat);
   };
@@ -480,32 +438,10 @@ export const EDFList: React.FC<EDFListProps> = ({
             </span>
           </label>
 
-          {/* High Priority Filter Button (<24 hours) */}
-          <button
-            type="button"
-            onClick={() => setPriorityFilter(priorityFilter === 'High' ? 'All' : 'High')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-              priorityFilter === 'High'
-                ? 'bg-red-600 text-white border-red-600 shadow-xs'
-                : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 hover:border-red-300 hover:text-red-600 dark:hover:text-red-400'
-            }`}
-            title="Filter items with required date within 24 hours"
-          >
-            <AlertTriangle
-              className={`w-3.5 h-3.5 ${
-                priorityFilter === 'High'
-                  ? 'text-white fill-white/20'
-                  : 'text-red-600 dark:text-red-400 fill-red-100 dark:fill-red-950'
-              }`}
-            />
-            <span>High Priority ({highPriorityCount})</span>
-          </button>
-
           {/* Reset Filters */}
           {(selectedCategory !== 'All' ||
             selectedStatus !== 'All' ||
             overdueOnly ||
-            priorityFilter !== 'All' ||
             search !== '' ||
             dateFilter !== 'all') && (
             <button
@@ -513,7 +449,6 @@ export const EDFList: React.FC<EDFListProps> = ({
                 setSelectedCategory('All');
                 setSelectedStatus('All');
                 setOverdueOnly(false);
-                setPriorityFilter('All');
                 setSearch('');
                 setDateFilter('all');
               }}
@@ -608,10 +543,9 @@ export const EDFList: React.FC<EDFListProps> = ({
                 <th className="py-2.5 px-2.5 min-w-[130px]">2. Remarks & Notes</th>
                 {/* 3. Material Summary */}
                 <th className="py-2.5 px-2.5 min-w-[170px]">3. Material Summary</th>
-                {/* 4. Compact Priority, Live Timer, Status */}
-                <th className="py-2 px-1 text-center w-16 text-xs font-semibold">Priority</th>
-                <th className="py-2 px-1 text-center w-24 text-xs font-semibold">Live Timer</th>
-                <th className="py-2 px-1 text-center w-18 text-xs font-semibold">Status</th>
+                {/* 4. Live Timer & Status */}
+                <th className="py-2.5 px-2 text-center w-28 text-xs font-semibold">Live Timer</th>
+                <th className="py-2.5 px-2 text-center w-24 text-xs font-semibold">Status</th>
                 <th className="py-2.5 px-2.5">Category</th>
                 <th className="py-2.5 px-2.5">Requester</th>
                 <th className="py-2.5 px-2.5">Request Date</th>
@@ -623,7 +557,7 @@ export const EDFList: React.FC<EDFListProps> = ({
               {filteredEdfs.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isAdmin ? 12 : 11}
+                    colSpan={isAdmin ? 11 : 10}
                     className="py-12 px-4 text-center text-slate-400 dark:text-slate-500"
                   >
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -641,7 +575,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                 filteredEdfs.map((item) => {
                   const isRowSelected = selectedIds.includes(item.id);
                   const isOverdue = item.status === 'Overdue' || item.isOverdue;
-                  const isHighPriority = isEdfHighPriority(item.requiredDate, item.status);
+                  const isDueSoon = isDueWithin24Hours(item.requiredDate, item.status);
 
                   return (
                     <React.Fragment key={item.id}>
@@ -649,8 +583,8 @@ export const EDFList: React.FC<EDFListProps> = ({
                         className={`transition-colors group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
                         isOverdue
                           ? 'bg-red-50/40 dark:bg-red-950/25 font-medium border-l-4 border-l-red-600'
-                          : isHighPriority
-                          ? 'bg-red-50/25 dark:bg-red-950/20 font-medium border-l-4 border-l-red-500'
+                          : isDueSoon
+                          ? 'bg-amber-50/25 dark:bg-amber-950/20 font-medium border-l-4 border-l-amber-500'
                           : isRowSelected
                           ? 'bg-indigo-50/30 dark:bg-indigo-950/20'
                           : ''
@@ -670,12 +604,12 @@ export const EDFList: React.FC<EDFListProps> = ({
                       {/* 1. EDF Number */}
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          {isHighPriority && (
+                          {isDueSoon && (
                             <span
-                              className="inline-flex items-center justify-center p-0.5 rounded bg-red-100 dark:bg-red-950/80 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800"
-                              title="High Priority: Due within 24 hours"
+                              className="inline-flex items-center justify-center p-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800"
+                              title="Due within 24 hours"
                             >
-                              <AlertTriangle className="w-3 h-3 text-red-600 dark:text-red-400 fill-red-500/20 animate-pulse shrink-0" />
+                              <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 fill-amber-500/20 shrink-0" />
                             </span>
                           )}
                           <button
@@ -714,17 +648,12 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </div>
                       </td>
 
-                      {/* 4. Remaining: Compact Priority Level */}
-                      <td className="py-1.5 px-1 text-center whitespace-nowrap text-xs">
-                        {getPriorityBadge(item.priority, isHighPriority)}
-                      </td>
-
-                      {/* 4. Remaining: Compact Live Timer */}
+                      {/* 4. Live Timer */}
                       <td className="py-1.5 px-1 text-center whitespace-nowrap text-xs">
                         <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
                       </td>
 
-                      {/* 4. Remaining: Compact Status & Receiving Indicator (Requirement 5) */}
+                      {/* 4. Status & Receiving Indicator */}
                       <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
                         <div className="flex flex-col items-center gap-1">
                           {getStatusBadge(item.status, item.isOverdue)}
@@ -732,7 +661,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </div>
                       </td>
 
-                      {/* 4. Remaining: Category with Domain Colors */}
+                      {/* 4. Category with Domain Colors */}
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         <span
                           className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-bold border ${getCategoryColor(
@@ -743,22 +672,22 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </span>
                       </td>
 
-                      {/* 4. Remaining: Requester */}
+                      {/* 4. Requester */}
                       <td className="py-2.5 px-3 text-slate-800 dark:text-slate-200 font-medium whitespace-nowrap">
                         <HighlightText text={item.requesterName} query={search} />
                       </td>
 
-                      {/* 4. Remaining: Issue Date */}
+                      {/* 4. Issue Date */}
                       <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
                         {new Date(item.issueDate).toLocaleDateString()}
                       </td>
 
-                      {/* 4. Remaining: Required Date */}
+                      {/* 4. Required Date */}
                       <td className="py-2.5 px-3 whitespace-nowrap text-[11px]">
                         <span
                           className={`font-medium ${
-                            isHighPriority
-                              ? 'text-red-600 dark:text-red-400 font-bold'
+                            isDueSoon
+                              ? 'text-amber-600 dark:text-amber-400 font-bold'
                               : 'text-slate-700 dark:text-slate-300'
                           }`}
                         >
@@ -1036,7 +965,7 @@ export const EDFList: React.FC<EDFListProps> = ({
           ) : (
             filteredEdfs.map((item) => {
               const isOverdue = item.status === 'Overdue' || item.isOverdue;
-              const isHighPriority = isEdfHighPriority(item.requiredDate, item.status);
+              const isDueSoon = isDueWithin24Hours(item.requiredDate, item.status);
 
               return (
                 <div
@@ -1044,14 +973,22 @@ export const EDFList: React.FC<EDFListProps> = ({
                   className={`p-4 space-y-3 transition-colors ${
                     isOverdue
                       ? 'bg-red-50/40 dark:bg-red-950/20 border-l-4 border-l-red-600'
-                      : isHighPriority
-                      ? 'bg-red-50/25 dark:bg-red-950/15 border-l-4 border-l-red-500'
+                      : isDueSoon
+                      ? 'bg-amber-50/25 dark:bg-amber-950/15 border-l-4 border-l-amber-500'
                       : ''
                   }`}
                 >
-                  {/* Row 1: EDF Number + Status & Priority Badges */}
+                  {/* Row 1: EDF Number + Status & Receiving Badges */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      {isDueSoon && (
+                        <span
+                          className="inline-flex items-center justify-center p-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800"
+                          title="Due within 24 hours"
+                        >
+                          <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 fill-amber-500/20 shrink-0" />
+                        </span>
+                      )}
                       <button
                         onClick={() => onViewDetails(item)}
                         className="font-mono font-black text-sm text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 text-left cursor-pointer"
@@ -1068,7 +1005,6 @@ export const EDFList: React.FC<EDFListProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
-                      {getPriorityBadge(item.priority, isHighPriority)}
                       {getStatusBadge(item.status, item.isOverdue)}
                       {renderReceivingBadge(item)}
                     </div>

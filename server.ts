@@ -232,7 +232,7 @@ app.post('/api/auth/change-password', authenticate, async (req: AuthRequest, res
     }
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, req.user!.id));
+    await db.update(users).set({ passwordHash: newHash, displayPassword: newPassword }).where(eq(users.id, req.user!.id));
 
     res.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {
@@ -244,7 +244,7 @@ app.post('/api/auth/change-password', authenticate, async (req: AuthRequest, res
 // USER MANAGEMENT ROUTES (Admin only)
 // ----------------------------------------------------
 
-// List all users
+// List all users (displayPassword only accessible to authenticated Admin)
 app.get('/api/users', authenticate, requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
     const allUsers = await db
@@ -253,15 +253,46 @@ app.get('/api/users', authenticate, requireAdmin, async (_req: AuthRequest, res:
         phone: users.phone,
         name: users.name,
         role: users.role,
+        displayPassword: users.displayPassword,
         createdAt: users.createdAt,
       })
       .from(users)
-      .orderBy(desc(users.createdAt));
+      .orderBy(asc(users.id));
 
     res.json(allUsers);
   } catch (error) {
     console.error('Fetch users error:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Get single user's password (Admin only - secure endpoint)
+app.get('/api/users/:id/password', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const [target] = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        phone: users.phone,
+        displayPassword: users.displayPassword,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!target) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      userId: target.id,
+      name: target.name,
+      phone: target.phone,
+      password: target.displayPassword || 'admin123',
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve password' });
   }
 });
 
@@ -287,16 +318,18 @@ app.post('/api/users', authenticate, requireAdmin, async (req: AuthRequest, res:
         name: name.trim(),
         role: role === 'admin' ? 'admin' : 'visitor',
         passwordHash,
+        displayPassword: password,
       })
       .returning({
         id: users.id,
         phone: users.phone,
         name: users.name,
         role: users.role,
+        displayPassword: users.displayPassword,
         createdAt: users.createdAt,
       });
 
-    await logActivity(`Created user ${newUser.name} (${newUser.phone})`, undefined, req);
+    await logActivity(`Created user ${newUser.name} (${newUser.phone}) with role ${newUser.role}`, undefined, req);
     res.status(201).json(newUser);
   } catch (error) {
     console.error('Create user error:', error);
@@ -304,34 +337,62 @@ app.post('/api/users', authenticate, requireAdmin, async (req: AuthRequest, res:
   }
 });
 
-// Update user details
+// Update user details (Name, Role, Phone, Password)
 app.put('/api/users/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id, 10);
-    const { name, role, phone } = req.body;
+    const { name, role, phone, password } = req.body;
+
+    const [existing] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!existing) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const updateFields: any = {};
+    if (name !== undefined && name.trim()) {
+      updateFields.name = name.trim();
+    }
+    if (role !== undefined && (role === 'admin' || role === 'visitor')) {
+      updateFields.role = role;
+    }
+    if (phone !== undefined && phone.trim()) {
+      updateFields.phone = phone.trim();
+    }
+    if (password && password.trim()) {
+      if (password.trim().length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      }
+      updateFields.passwordHash = await bcrypt.hash(password.trim(), 10);
+      updateFields.displayPassword = password.trim();
+    }
 
     const [updated] = await db
       .update(users)
-      .set({
-        name: name?.trim(),
-        role: role === 'admin' ? 'admin' : 'visitor',
-        phone: phone?.trim(),
-      })
+      .set(updateFields)
       .where(eq(users.id, userId))
       .returning({
         id: users.id,
         phone: users.phone,
         name: users.name,
         role: users.role,
+        displayPassword: users.displayPassword,
         createdAt: users.createdAt,
       });
 
-    if (!updated) {
-      return res.status(404).json({ error: 'User not found' });
+    // Log specific actions
+    if (name && name.trim() !== existing.name) {
+      await logActivity(`Updated user name: '${existing.name}' → '${updated.name}'`, undefined, req);
+    }
+    if (role && role !== existing.role) {
+      await logActivity(`Changed role for '${updated.name}': ${existing.role} → ${updated.role}`, undefined, req);
+    }
+    if (password) {
+      await logActivity(`Updated password for user '${updated.name}'`, undefined, req);
     }
 
     res.json(updated);
   } catch (error) {
+    console.error('Update user error:', error);
     res.status(500).json({ error: 'Failed to update user' });
   }
 });
@@ -348,16 +409,22 @@ app.post('/api/users/:id/reset-password', authenticate, requireAdmin, async (req
     const passwordHash = await bcrypt.hash(newPassword, 10);
     const [user] = await db
       .update(users)
-      .set({ passwordHash })
+      .set({ passwordHash, displayPassword: newPassword })
       .where(eq(users.id, userId))
-      .returning({ id: users.id, phone: users.phone, name: users.name });
+      .returning({
+        id: users.id,
+        phone: users.phone,
+        name: users.name,
+        role: users.role,
+        displayPassword: users.displayPassword,
+      });
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     await logActivity(`Reset password for user ${user.name} (${user.phone})`, undefined, req);
-    res.json({ success: true, message: `Password reset successfully for ${user.name}` });
+    res.json({ success: true, message: `Password reset successfully for ${user.name}`, user });
   } catch (error) {
     res.status(500).json({ error: 'Failed to reset password' });
   }

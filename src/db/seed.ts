@@ -42,12 +42,14 @@ export async function seedDatabase() {
           name: 'Coordinator Admin',
           role: 'admin',
           passwordHash: adminHash,
+          displayPassword: 'admin123',
         },
         {
           phone: '03009876543',
           name: 'Site Visitor',
           role: 'visitor',
           passwordHash: visitorHash,
+          displayPassword: 'visitor123',
         },
       ]);
       console.log('Default accounts initialized.');

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Category, EDFItem, EDFPriority } from '../types.ts';
+import { Category, EDFItem } from '../types.ts';
 import { getCategoryBadgeClass, getCategoryTheme } from '../utils/categoryColors.ts';
 import { RequesterDropdown } from './RequesterDropdown.tsx';
 import {
@@ -49,7 +49,6 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     const d = new Date(Date.now() + 3 * 24 * 3600 * 1000);
     return d.toISOString().slice(0, 10);
   });
-  const [priority, setPriority] = useState<EDFPriority>('Medium');
   const [remarks, setRemarks] = useState<string>('Imported from Excel table');
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -326,7 +325,6 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
       materialList: summary,
       quantity: totalQty,
       unit: validItems[0]?.unit || 'pcs',
-      priority,
       remarks: remarks.trim() || null,
       items: validItems, // Preserves every individual row!
     };
@@ -560,8 +558,8 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
               )}
             </div>
 
-            {/* Form Fields: EDF Number, Requester, Issue Date, Required Date (Date only!), Priority */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+            {/* Form Fields: EDF Number, Requester, Issue Date, Required Date (Date only!), Remarks */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
               {/* EDF Number */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
@@ -628,22 +626,6 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                 )}
               </div>
 
-              {/* Priority */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Priority Level *
-                </label>
-                <select
-                  value={priority}
-                  onChange={(e: any) => setPriority(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                >
-                  <option value="Low">Low Priority</option>
-                  <option value="Medium">Medium Priority</option>
-                  <option value="High">High Priority</option>
-                </select>
-              </div>
-
               {/* Request / Issue Date */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
@@ -664,7 +646,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                         });
                       }
                     }}
-                    className={`w-full pl-9 pr-3.5 py-2 rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 ${
+                    className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 ${
                       validationErrors.issueDate
                         ? 'border-red-500 focus:ring-red-400'
                         : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500'
@@ -700,7 +682,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                         });
                       }
                     }}
-                    className={`w-full pl-9 pr-3.5 py-2 rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 ${
+                    className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 ${
                       validationErrors.requiredDate
                         ? 'border-red-500 focus:ring-red-400'
                         : 'border-slate-200 dark:border-slate-800 focus:ring-indigo-500'
@@ -717,7 +699,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
               </div>
 
               {/* Remarks / Notes */}
-              <div>
+              <div className="sm:col-span-2 lg:col-span-4">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                   Remarks & Notes
                 </label>
@@ -726,7 +708,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   placeholder="e.g. Urgent stock replacement"
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>

@@ -59,20 +59,27 @@ export const RequesterDropdown: React.FC<RequesterDropdownProps> = ({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!isMounted) return;
+        let list: Requester[] = [];
         if (Array.isArray(data) && data.length > 0) {
-          setRequesters(data);
+          list = data;
         } else {
-          // Use alphabetical fallback
-          setRequesters(
-            FALLBACK_REQUESTERS.map((name, idx) => ({ id: idx + 1, name }))
-          );
+          list = FALLBACK_REQUESTERS.map((name, idx) => ({ id: idx + 1, name }));
         }
+
+        // Preserve and display legacy requester value if not already in list
+        if (value && value.trim() && !list.some((r) => r.name.toLowerCase() === value.trim().toLowerCase())) {
+          list = [...list, { id: 999999, name: value.trim() }];
+        }
+
+        setRequesters(list.sort((a, b) => a.name.localeCompare(b.name)));
       })
       .catch(() => {
         if (!isMounted) return;
-        setRequesters(
-          FALLBACK_REQUESTERS.map((name, idx) => ({ id: idx + 1, name }))
-        );
+        let list = FALLBACK_REQUESTERS.map((name, idx) => ({ id: idx + 1, name }));
+        if (value && value.trim() && !list.some((r) => r.name.toLowerCase() === value.trim().toLowerCase())) {
+          list = [...list, { id: 999999, name: value.trim() }];
+        }
+        setRequesters(list.sort((a, b) => a.name.localeCompare(b.name)));
       })
       .finally(() => {
         if (isMounted) setIsLoading(false);
@@ -81,7 +88,7 @@ export const RequesterDropdown: React.FC<RequesterDropdownProps> = ({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [value]);
 
   // Close when clicking outside
   useEffect(() => {

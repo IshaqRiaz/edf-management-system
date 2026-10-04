@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { EDF, Category, EDFItem, EDFPriority, EDFStatus } from '../types.ts';
+import { EDF, Category, EDFItem, EDFStatus } from '../types.ts';
 import { X, Plus, Trash2, CheckCircle2, Sparkles, Clock, AlertTriangle } from 'lucide-react';
 import { RequesterDropdown } from './RequesterDropdown.tsx';
 
@@ -26,7 +26,6 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
   const [issueDate, setIssueDate] = useState('');
   const [requiredDate, setRequiredDate] = useState('');
   const [status, setStatus] = useState<EDFStatus>('Pending');
-  const [priority, setPriority] = useState<EDFPriority>('Medium');
   const [remarks, setRemarks] = useState('');
   const [items, setItems] = useState<EDFItem[]>([
     { itemDescription: '', quantity: 1, unit: 'pcs' },
@@ -42,7 +41,6 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
       setIssueDate(new Date(editingEdf.issueDate).toISOString().slice(0, 10));
       setRequiredDate(new Date(editingEdf.requiredDate).toISOString().slice(0, 10));
       setStatus(editingEdf.status);
-      setPriority(editingEdf.priority || 'Medium');
       setRemarks(editingEdf.remarks || '');
       if (editingEdf.items && editingEdf.items.length > 0) {
         setItems(editingEdf.items);
@@ -65,7 +63,6 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
       setIssueDate(now.toISOString().slice(0, 10));
       setRequiredDate(inThreeDays.toISOString().slice(0, 10));
       setStatus('Pending');
-      setPriority('Medium');
       setRemarks('');
       setItems([{ itemDescription: '', quantity: 1, unit: 'pcs' }]);
     }
@@ -133,7 +130,6 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
       quantity: totalQty,
       unit: validItems[0]?.unit || 'pcs',
       status,
-      priority,
       remarks: remarks.trim() || null,
       items: validItems,
     };
@@ -215,20 +211,27 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
             </div>
 
             <div className="min-w-0">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Requester Name *
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                <span>Requester Name *</span>
+                {error && !requesterName.trim() && (
+                  <span className="text-[10px] text-red-500 font-bold">Mandatory</span>
+                )}
               </label>
               <RequesterDropdown
                 value={requesterName}
-                onChange={(val) => setRequesterName(val)}
-                placeholder="Select or enter requester..."
+                onChange={(val) => {
+                  setRequesterName(val);
+                  if (val.trim() && error) setError(null);
+                }}
+                placeholder="Select or enter requester name..."
                 required
+                error={error && !requesterName.trim() ? 'Requester name is mandatory' : null}
               />
             </div>
           </div>
 
-          {/* Dates, Priority & Status Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          {/* Dates & Status Grid (Clean 3-Column Layout) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Issue Date *
@@ -253,21 +256,6 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Priority Level *
-              </label>
-              <select
-                value={priority}
-                onChange={(e: any) => setPriority(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-              >
-                <option value="Low">Low Priority</option>
-                <option value="Medium">Medium Priority</option>
-                <option value="High">High Priority</option>
-              </select>
             </div>
 
             <div>
