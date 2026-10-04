@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { EDF, Category, EDFItem, EDFStatus } from '../types.ts';
 import { X, Plus, Trash2, CheckCircle2, Sparkles, Clock, AlertTriangle } from 'lucide-react';
-import { RequesterDropdown } from './RequesterDropdown.tsx';
+import { RequesterDropdown, CATEGORY_REQUESTERS_MAP, normalizeCategoryKey } from './RequesterDropdown.tsx';
 
 interface CreateEditEDFModalProps {
   isOpen: boolean;
@@ -22,7 +22,7 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
 
   const [edfNumber, setEdfNumber] = useState('');
   const [requesterName, setRequesterName] = useState('');
-  const [category, setCategory] = useState('HVAC');
+  const [category, setCategory] = useState('');
   const [issueDate, setIssueDate] = useState('');
   const [requiredDate, setRequiredDate] = useState('');
   const [status, setStatus] = useState<EDFStatus>('Pending');
@@ -54,12 +54,12 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
         ]);
       }
     } else {
-      // Create mode defaults
+      // Create mode defaults: Category must be selected first
       const now = new Date();
       const inThreeDays = new Date(now.getTime() + 3 * 24 * 3600 * 1000);
       setEdfNumber('');
       setRequesterName('');
-      setCategory(categories[0]?.name || 'HVAC');
+      setCategory(''); // Category must be chosen first
       setIssueDate(now.toISOString().slice(0, 10));
       setRequiredDate(inThreeDays.toISOString().slice(0, 10));
       setStatus('Pending');
@@ -70,6 +70,23 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
   }, [editingEdf, isOpen, categories]);
 
   if (!isOpen) return null;
+
+  const handleCategoryChange = (newCat: string) => {
+    setCategory(newCat);
+    // When category changes, verify if the currently selected requester belongs to the new team
+    if (requesterName && newCat) {
+      const norm = normalizeCategoryKey(newCat);
+      if (norm !== 'general' && CATEGORY_REQUESTERS_MAP[norm]) {
+        const allowed = CATEGORY_REQUESTERS_MAP[norm].map((n) => n.toLowerCase());
+        if (!allowed.includes(requesterName.toLowerCase())) {
+          setRequesterName(''); // Reset selection as name does not belong to new category
+        }
+      }
+    } else if (!newCat) {
+      setRequesterName('');
+    }
+    if (error) setError(null);
+  };
 
   const handleItemChange = (index: number, field: keyof EDFItem, value: any) => {
     setItems((prev) => {
@@ -95,8 +112,13 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
     e.preventDefault();
     setError(null);
 
+    if (!category.trim()) {
+      setError('Please select a Category first.');
+      return;
+    }
+
     if (!requesterName.trim()) {
-      setError('Please provide the Requester Name');
+      setError('Please select a Requester Name from the list.');
       return;
     }
 
@@ -178,30 +200,24 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
-          {/* Main Grid: EDF Number, Category, Requester */}
+          {/* Main Grid: Category (Select First), Requester Name (Filtered), EDF Number */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Edf Number
-              </label>
-              <input
-                type="text"
-                value={edfNumber}
-                onChange={(e) => setEdfNumber(e.target.value)}
-                placeholder="Auto-generated if blank"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Category *
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
+                <span>Category / Team *</span>
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">Step 1</span>
               </label>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className={`w-full px-3 py-2 rounded-xl border bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer ${
+                  !category
+                    ? 'border-indigo-400 dark:border-indigo-500 ring-2 ring-indigo-500/20'
+                    : 'border-slate-200 dark:border-slate-800'
+                }`}
+                required
               >
+                <option value="">-- Select Category / Team First --</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.name}>
                     {c.name}
@@ -213,8 +229,10 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
             <div className="min-w-0">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center justify-between">
                 <span>Requester Name *</span>
-                {error && !requesterName.trim() && (
-                  <span className="text-[10px] text-red-500 font-bold">Mandatory</span>
+                {category ? (
+                  <span className="text-[10px] text-slate-400 font-medium">Team: {category}</span>
+                ) : (
+                  <span className="text-[10px] text-amber-500 font-bold">Pick Category First</span>
                 )}
               </label>
               <RequesterDropdown
@@ -223,9 +241,23 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
                   setRequesterName(val);
                   if (val.trim() && error) setError(null);
                 }}
-                placeholder="Select or enter requester name..."
+                category={category}
+                placeholder={category ? `Select ${category} Requester...` : 'Select Category first...'}
                 required
                 error={error && !requesterName.trim() ? 'Requester name is mandatory' : null}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                EDF Number
+              </label>
+              <input
+                type="text"
+                value={edfNumber}
+                onChange={(e) => setEdfNumber(e.target.value)}
+                placeholder="Auto-generated if blank"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>

@@ -614,8 +614,9 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                       });
                     }
                   }}
+                  category={selectedCategory}
                   error={validationErrors.requesterName}
-                  placeholder="Select or enter requester name..."
+                  placeholder={selectedCategory ? `Select ${selectedCategory} Requester...` : "Select or enter requester name..."}
                   required
                 />
                 {validationErrors.requesterName && (
