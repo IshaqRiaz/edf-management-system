@@ -1016,6 +1016,186 @@ app.post('/api/edfs', authenticate, requireAdmin, async (req: AuthRequest, res: 
   }
 });
 
+// Batch Import / Recovery from CSV (Safe non-destructive merge and restore)
+app.post('/api/edfs/batch-import-csv', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { records } = req.body;
+    if (!Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ error: 'No records provided for CSV import' });
+    }
+
+    let createdCount = 0;
+    let updatedCount = 0;
+    let totalItemsImported = 0;
+
+    for (const record of records) {
+      const edfNumber = record.edfNumber ? String(record.edfNumber).trim() : null;
+      if (!edfNumber) continue;
+
+      const requesterName = (record.requesterName || 'Admin').trim();
+      const category = (record.category || 'General').trim();
+      const issueDate = record.issueDate ? new Date(record.issueDate) : new Date();
+      const requiredDate = record.requiredDate ? new Date(record.requiredDate) : new Date(Date.now() + 3 * 86400000);
+      const safeRemarks = record.remarks !== undefined && record.remarks !== null ? String(record.remarks).trim() : null;
+
+      // Identify existing EDF record by EDF Number
+      const [existing] = await db.select().from(edfs).where(eq(edfs.edfNumber, edfNumber)).limit(1);
+
+      if (existing) {
+        // Safe update/restore: merge available information without deleting existing record
+        const finalStatus = (record.status && record.status.trim()) ? record.status.trim() : existing.status;
+        await db
+          .update(edfs)
+          .set({
+            requesterName,
+            category,
+            issueDate,
+            requiredDate,
+            remarks: safeRemarks !== null ? safeRemarks : existing.remarks,
+            status: finalStatus,
+            updatedAt: new Date(),
+          })
+          .where(eq(edfs.id, existing.id));
+
+        // Safe merge of material items: NEVER delete existing items
+        const existingItems = await db.select().from(edfItems).where(eq(edfItems.edfId, existing.id));
+        
+        if (Array.isArray(record.items) && record.items.length > 0) {
+          for (const item of record.items) {
+            const desc = (item.itemDescription || '').trim();
+            if (!desc) continue;
+            const qty = item.quantity ? parseInt(item.quantity, 10) : 1;
+            const unit = (item.unit || 'pcs').trim();
+            const itemStatus = item.status === 'Received' ? 'Received' : 'Pending';
+
+            // Check if item already exists by description
+            const match = existingItems.find(
+              (ei) => ei.itemDescription.trim().toLowerCase() === desc.toLowerCase()
+            );
+
+            if (match) {
+              if (item.status && item.status !== match.status) {
+                await db
+                  .update(edfItems)
+                  .set({
+                    status: itemStatus,
+                    receivedAt: itemStatus === 'Received' ? new Date() : null,
+                  })
+                  .where(eq(edfItems.id, match.id));
+              }
+            } else {
+              // Insert new item row without deleting any existing rows
+              await db.insert(edfItems).values({
+                edfId: existing.id,
+                itemDescription: desc,
+                quantity: qty,
+                unit: unit,
+                status: itemStatus,
+                receivedAt: itemStatus === 'Received' ? new Date() : null,
+              });
+              totalItemsImported++;
+            }
+          }
+        }
+
+        // Update materialList summary on EDF to reflect all items
+        const allItems = await db.select().from(edfItems).where(eq(edfItems.edfId, existing.id));
+        if (allItems.length > 0) {
+          const summary = allItems
+            .map((i) => `${i.itemDescription} (${i.quantity} ${i.unit})`)
+            .slice(0, 3)
+            .join(', ') + (allItems.length > 3 ? ` + ${allItems.length - 3} more` : '');
+          const totalQty = allItems.reduce((acc, i) => acc + (i.quantity || 1), 0);
+          await db
+            .update(edfs)
+            .set({ materialList: summary, quantity: totalQty })
+            .where(eq(edfs.id, existing.id));
+        }
+
+        if (requesterName) {
+          await db.insert(requesters).values({ name: requesterName }).onConflictDoNothing().catch(() => {});
+        }
+
+        await logActivity(`${edfNumber} Restored/Updated via CSV`, edfNumber, req);
+        updatedCount++;
+      } else {
+        // Create new EDF record
+        const isPast = requiredDate.getTime() < Date.now();
+        const initialStatus = record.status || (isPast ? 'Overdue' : 'Pending');
+
+        const itemsToInsert = Array.isArray(record.items) && record.items.length > 0
+          ? record.items.filter((i: any) => i && i.itemDescription && i.itemDescription.trim())
+          : [{ itemDescription: record.materialList || 'Material item', quantity: 1, unit: 'pcs', status: 'Pending' }];
+
+        const summary = itemsToInsert
+          .map((i: any) => `${i.itemDescription} (${i.quantity || 1} ${i.unit || 'pcs'})`)
+          .slice(0, 3)
+          .join(', ') + (itemsToInsert.length > 3 ? ` + ${itemsToInsert.length - 3} more` : '');
+        const totalQty = itemsToInsert.reduce((acc: number, i: any) => acc + (parseInt(i.quantity, 10) || 1), 0);
+
+        const [created] = await db
+          .insert(edfs)
+          .values({
+            edfNumber,
+            requesterName,
+            category,
+            issueDate,
+            requiredDate,
+            materialList: summary,
+            quantity: totalQty,
+            unit: itemsToInsert[0]?.unit || 'pcs',
+            status: initialStatus,
+            priority: 'Medium',
+            remarks: safeRemarks,
+            createdBy: req.user?.phone || 'admin',
+          })
+          .returning();
+
+        for (const item of itemsToInsert) {
+          const itemStatus = item.status === 'Received' ? 'Received' : 'Pending';
+          await db.insert(edfItems).values({
+            edfId: created.id,
+            itemDescription: item.itemDescription.trim(),
+            quantity: item.quantity ? parseInt(item.quantity, 10) : 1,
+            unit: item.unit ? item.unit.trim() : 'pcs',
+            status: itemStatus,
+            receivedAt: itemStatus === 'Received' ? new Date() : null,
+          });
+          totalItemsImported++;
+        }
+
+        if (requesterName) {
+          await db.insert(requesters).values({ name: requesterName }).onConflictDoNothing().catch(() => {});
+        }
+
+        await logActivity(`${edfNumber} Created via CSV Import`, edfNumber, req);
+        await recordStatusHistory(
+          created.id,
+          created.edfNumber,
+          initialStatus,
+          null,
+          'Imported from CSV file',
+          req
+        );
+        createdCount++;
+      }
+    }
+
+    takeDatabaseBackup('auto').catch(console.error);
+
+    res.json({
+      success: true,
+      createdCount,
+      updatedCount,
+      totalProcessed: createdCount + updatedCount,
+      totalItemsImported,
+    });
+  } catch (error: any) {
+    console.error('Batch CSV Import error:', error);
+    res.status(500).json({ error: error.message || 'Failed to import CSV data' });
+  }
+});
+
 // Update EDF
 app.put('/api/edfs/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {

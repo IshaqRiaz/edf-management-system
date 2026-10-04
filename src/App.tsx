@@ -113,25 +113,29 @@ const MainLayout: React.FC = () => {
   }, [fetchWithRetry]);
 
   // Refresh all application data
-  const refreshAllData = useCallback(async () => {
-    setIsLoading(true);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+
+  const refreshAllData = useCallback(async (isManual = false) => {
+    if (isManual) setIsManualRefreshing(true);
+    else setIsLoading(true);
     await Promise.all([fetchEDFs(), fetchStats(), fetchCategories()]);
-    setIsLoading(false);
+    if (isManual) setIsManualRefreshing(false);
+    else setIsLoading(false);
   }, [fetchEDFs, fetchStats, fetchCategories]);
 
   useEffect(() => {
     if (token) {
-      refreshAllData();
+      refreshAllData(false);
     }
   }, [token, refreshAllData]);
 
-  // Periodic subtle background poll to update overdue calculations every 15s
+  // Periodic subtle background poll to update overdue calculations, statuses, timers, and stats every 5 seconds
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(() => {
       fetchEDFs();
       fetchStats();
-    }, 15000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [token, fetchEDFs, fetchStats]);
 
@@ -479,8 +483,8 @@ const MainLayout: React.FC = () => {
               onOpenCreate={() => setIsCreateModalOpen(true)}
               onOpenImport={() => setActiveTab('import')}
               onExportCSV={() => handleExportCSV(edfs)}
-              onRefresh={refreshAllData}
-              isRefreshing={isLoading}
+              onRefresh={() => refreshAllData(true)}
+              isRefreshing={isManualRefreshing}
               isAdmin={isAdmin}
             />
           )}
@@ -502,7 +506,7 @@ const MainLayout: React.FC = () => {
               edfs={edfs}
               categories={categories}
               isLoading={isLoading}
-              onRefresh={refreshAllData}
+              onRefresh={() => refreshAllData(true)}
               onViewDetails={(item) => setViewingEdf(item)}
               onEdit={(item) => setEditingEdf(item)}
               onDelete={handleDeleteEDF}
@@ -535,6 +539,11 @@ const MainLayout: React.FC = () => {
               categories={categories}
               onSaveEDF={handleSaveNewEDF}
               onCancel={() => setActiveTab('dashboard')}
+              existingEdfs={edfs}
+              onImportSuccess={() => {
+                refreshAllData(true);
+                setActiveTab('edfs');
+              }}
             />
           )}
 

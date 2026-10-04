@@ -112,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'import' as NavTab,
-      label: 'Import Excel',
+      label: 'Import Excel and CSV',
       icon: FileUp,
       adminOnly: true,
     },

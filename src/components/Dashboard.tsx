@@ -445,9 +445,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Welcome & Quick Action Bar (Compact Modern Size) */}
       <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r ${getBannerGradient(accent)} text-white shadow-xl transition-all duration-300 w-full min-w-0`}>
         <div className="min-w-0">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur text-[11px] font-bold mb-1.5">
-            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Demand Form Coordinator Hub</span>
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur text-[11px] font-bold">
+              <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Demand Form Coordinator Hub</span>
+            </div>
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/25 backdrop-blur text-emerald-100 text-[10px] font-semibold border border-emerald-400/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span>Auto-refresh 5s</span>
+            </div>
           </div>
           <h2 className="text-lg sm:text-xl font-black tracking-tight truncate">
             EDF Operational Overview
@@ -472,7 +478,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 className="flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs"
               >
                 <FileUp className="w-3.5 h-3.5" />
-                <span>Import Excel</span>
+                <span>Import Excel and CSV</span>
               </button>
             </>
           )}
@@ -490,12 +496,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="flex items-center justify-center gap-1 px-3 py-2 min-h-[38px] rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
-              title="Refresh all dashboard statistics and tables"
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs border border-white/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+              title="Refresh all dashboard statistics and tables (Auto-refreshes every 5s)"
               aria-label="Refresh dashboard data"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
+              <span>Refresh</span>
             </button>
           )}
         </div>
