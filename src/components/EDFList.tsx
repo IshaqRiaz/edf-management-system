@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 
 export const isDueWithin24Hours = (requiredDate: string | Date, status?: string): boolean => {
-  if (status === 'Received' || status === 'Completed') return false;
+  if (status === 'Received') return false;
   if (!requiredDate) return false;
   const reqTime = new Date(requiredDate).getTime();
   if (isNaN(reqTime)) return false;
@@ -54,10 +54,10 @@ interface EDFListProps {
   onViewDetails: (edf: EDF) => void;
   onEdit: (edf: EDF) => void;
   onDelete: (id: number) => void;
-  onMarkStatus: (id: number, status: 'Received' | 'Completed' | 'Pending') => void;
+  onMarkStatus: (id: number, status: 'Received' | 'Partially Received' | 'Pending') => void;
   onReceiveItems?: (edfId: number, itemIds: number[]) => Promise<void>;
   onUndoItemReceived?: (edfId: number, itemId: number) => Promise<void>;
-  onBulkAction: (ids: number[], action: 'mark-received' | 'mark-completed' | 'delete') => void;
+  onBulkAction: (ids: number[], action: 'mark-received' | 'delete') => void;
   onOpenCreate: () => void;
   onExportCSV: (filtered: EDF[]) => void;
   isAdmin: boolean;
@@ -109,8 +109,31 @@ export const EDFList: React.FC<EDFListProps> = ({
       }
 
       // Status filter
-      if (selectedStatus !== 'All' && item.status.toLowerCase() !== selectedStatus.toLowerCase()) {
-        return false;
+      if (selectedStatus !== 'All') {
+        const selLower = selectedStatus.toLowerCase();
+        if (selLower === 'overdue') {
+          if (item.status !== 'Overdue' && !item.isOverdue) return false;
+        } else if (selLower === 'partially received') {
+          const rawItems = item.items || [];
+          const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+          const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+          const isPartial = item.status === 'Partially Received' || (receivedCount > 0 && receivedCount < totalCount);
+          if (!isPartial) return false;
+        } else if (selLower === 'received') {
+          const rawItems = item.items || [];
+          const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+          const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+          const isReceived = item.status === 'Received' || (receivedCount >= totalCount && totalCount > 0);
+          if (!isReceived) return false;
+        } else if (selLower === 'pending') {
+          const rawItems = item.items || [];
+          const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+          const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+          const isPending = (item.status === 'Pending' || item.status === 'Overdue') && receivedCount === 0;
+          if (!isPending) return false;
+        } else if (item.status.toLowerCase() !== selLower) {
+          return false;
+        }
       }
 
       // Overdue filter
@@ -169,30 +192,23 @@ export const EDFList: React.FC<EDFListProps> = ({
   const getStatusBadge = (status: string, isOverdue?: boolean) => {
     const s = isOverdue ? 'Overdue' : status;
     switch (s) {
-      case 'Completed':
-        return (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 whitespace-nowrap">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>Completed</span>
-          </span>
-        );
       case 'Received':
         return (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 whitespace-nowrap">
-            <PackageCheck className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
+          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 whitespace-nowrap">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Received</span>
           </span>
         );
       case 'Partially Received':
         return (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800 whitespace-nowrap">
-            <PackageCheck className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0" />
+          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800 whitespace-nowrap">
+            <PackageCheck className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <span>Partially Received</span>
           </span>
         );
       case 'Overdue':
         return (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-300 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800 animate-pulse whitespace-nowrap">
+          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-300 dark:bg-red-950/60 dark:text-red-300 dark:border-red-800 animate-pulse whitespace-nowrap">
             <AlertOctagon className="w-3 h-3 text-red-600 dark:text-red-400 shrink-0" />
             <span>Overdue</span>
           </span>
@@ -200,7 +216,7 @@ export const EDFList: React.FC<EDFListProps> = ({
       case 'Pending':
       default:
         return (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 whitespace-nowrap">
+          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 whitespace-nowrap">
             <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>Pending</span>
           </span>
@@ -216,37 +232,37 @@ export const EDFList: React.FC<EDFListProps> = ({
     const isPartial = receivedCount > 0 && receivedCount < totalCount;
     const allReceived = totalCount > 0 && receivedCount === totalCount;
 
-    if (isPartial || item.status === 'Partially Received') {
+    if (allReceived || item.status === 'Received') {
       return (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-300 dark:border-sky-800 whitespace-nowrap"
-          title="Partially Received"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 whitespace-nowrap"
+          title="All items received"
         >
-          <PackageCheck className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0" />
-          <span>Partial: {receivedCount}/{totalCount} Received</span>
+          <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span>Received — {totalCount}/{totalCount}</span>
         </span>
       );
     }
 
-    if (allReceived || item.status === 'Received' || item.status === 'Completed') {
+    if (isPartial || item.status === 'Partially Received') {
       return (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800 whitespace-nowrap"
-          title="All items received"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 whitespace-nowrap"
+          title="Partially Received"
         >
-          <CheckCircle2 className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
-          <span>{totalCount}/{totalCount} Received</span>
+          <PackageCheck className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
+          <span>Partially Received — {receivedCount}/{totalCount} Received</span>
         </span>
       );
     }
 
     return (
       <span
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50/80 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap"
         title="Pending receiving"
       >
-        <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-        <span>0/{totalCount} Received</span>
+        <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+        <span>Pending — 0/{totalCount} Received</span>
       </span>
     );
   };
@@ -404,8 +420,8 @@ export const EDFList: React.FC<EDFListProps> = ({
             >
               <option value="All">All Statuses</option>
               <option value="Pending">Pending</option>
+              <option value="Partially Received">Partially Received</option>
               <option value="Received">Received</option>
-              <option value="Completed">Completed</option>
               <option value="Overdue">Overdue</option>
             </select>
           </div>
@@ -480,14 +496,6 @@ export const EDFList: React.FC<EDFListProps> = ({
             </button>
 
             <button
-              onClick={() => onBulkAction(selectedIds, 'mark-completed')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Mark as Completed</span>
-            </button>
-
-            <button
               onClick={() => {
                 if (
                   confirm(
@@ -538,14 +546,17 @@ export const EDFList: React.FC<EDFListProps> = ({
                   </th>
                 )}
                 {/* 1. Edf Number */}
-                <th className="py-2.5 px-2.5 min-w-[110px]">1. Edf Number</th>
+                <th className="py-2.5 px-2.5 min-w-[110px]">1. EDF Number</th>
                 {/* 2. Remarks & Notes */}
                 <th className="py-2.5 px-2.5 min-w-[130px]">2. Remarks & Notes</th>
                 {/* 3. Material Summary */}
                 <th className="py-2.5 px-2.5 min-w-[170px]">3. Material Summary</th>
-                {/* 4. Live Timer & Status */}
-                <th className="py-2.5 px-2 text-center w-28 text-xs font-semibold">Live Timer</th>
-                <th className="py-2.5 px-2 text-center w-24 text-xs font-semibold">Status</th>
+                {/* 4. Priority */}
+                <th className="py-2.5 px-2 text-center w-20 text-xs font-semibold">4. Priority</th>
+                {/* 5. Live Timer */}
+                <th className="py-2.5 px-2 text-center w-28 text-xs font-semibold">5. Live Timer</th>
+                {/* 6. Status */}
+                <th className="py-2.5 px-2 text-center w-28 text-xs font-semibold">6. Status</th>
                 <th className="py-2.5 px-2.5">Category</th>
                 <th className="py-2.5 px-2.5">Requester</th>
                 <th className="py-2.5 px-2.5">Request Date</th>
@@ -557,7 +568,7 @@ export const EDFList: React.FC<EDFListProps> = ({
               {filteredEdfs.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isAdmin ? 11 : 10}
+                    colSpan={isAdmin ? 12 : 11}
                     className="py-12 px-4 text-center text-slate-400 dark:text-slate-500"
                   >
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -648,12 +659,25 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </div>
                       </td>
 
-                      {/* 4. Live Timer */}
+                      {/* 4. Priority */}
+                      <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                          item.priority === 'High'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                            : item.priority === 'Low'
+                            ? 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                            : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800'
+                        }`}>
+                          {item.priority || 'Medium'}
+                        </span>
+                      </td>
+
+                      {/* 5. Live Timer */}
                       <td className="py-1.5 px-1 text-center whitespace-nowrap text-xs">
                         <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
                       </td>
 
-                      {/* 4. Status & Receiving Indicator */}
+                      {/* 6. Status & Receiving Indicator */}
                       <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
                         <div className="flex flex-col items-center gap-1">
                           {getStatusBadge(item.status, item.isOverdue)}
@@ -661,7 +685,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </div>
                       </td>
 
-                      {/* 4. Category with Domain Colors */}
+                      {/* Remaining: Category with Domain Colors */}
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         <span
                           className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-bold border ${getCategoryColor(
@@ -672,17 +696,17 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </span>
                       </td>
 
-                      {/* 4. Requester */}
+                      {/* Requester */}
                       <td className="py-2.5 px-3 text-slate-800 dark:text-slate-200 font-medium whitespace-nowrap">
                         <HighlightText text={item.requesterName} query={search} />
                       </td>
 
-                      {/* 4. Issue Date */}
+                      {/* Issue Date */}
                       <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[11px]">
                         {new Date(item.issueDate).toLocaleDateString()}
                       </td>
 
-                      {/* 4. Required Date */}
+                      {/* Required Date */}
                       <td className="py-2.5 px-3 whitespace-nowrap text-[11px]">
                         <span
                           className={`font-medium ${
@@ -695,7 +719,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </span>
                       </td>
 
-                      {/* 4. Remaining: Actions (Available to both Admin and Viewer) */}
+                      {/* Actions (Available to both Admin and Viewer) */}
                       <td className="py-2.5 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           {/* Toggle Material Items Checklist (Item-level receiving for Admin & Viewer) */}
@@ -734,13 +758,13 @@ export const EDFList: React.FC<EDFListProps> = ({
                           </button>
 
                           {/* Mark Received (Available to BOTH Admin and Viewer!) */}
-                          {item.status !== 'Received' && item.status !== 'Completed' && (
+                          {item.status !== 'Received' && (
                             <button
                               onClick={() => onMarkStatus(item.id, 'Received')}
-                              className="p-1 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors cursor-pointer"
-                              title="Mark as Received (Stops live timer)"
+                              className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                              title="Mark as Received (Completes EDF and stops timer)"
                             >
-                              <PackageCheck className="w-3.5 h-3.5" />
+                              <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
                           )}
 
@@ -753,16 +777,6 @@ export const EDFList: React.FC<EDFListProps> = ({
                               >
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
-
-                              {item.status !== 'Completed' && (
-                                <button
-                                  onClick={() => onMarkStatus(item.id, 'Completed')}
-                                  className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
-                                  title="Mark as Completed"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
 
                               <button
                                 onClick={() => {
@@ -856,7 +870,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                                           itemDescription: item.materialList,
                                           quantity: item.quantity,
                                           unit: item.unit,
-                                          status: (item.status === 'Received' || item.status === 'Completed' ? 'Received' : 'Pending') as 'Pending' | 'Received',
+                                          status: (item.status === 'Received' ? 'Received' : 'Pending') as 'Pending' | 'Received',
                                           receivedAt: null,
                                           receivedBy: null,
                                         } as EDFItem,
@@ -1089,7 +1103,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                     </button>
 
                     {/* Both Admin and Viewer can mark Received */}
-                    {item.status !== 'Received' && item.status !== 'Completed' && (
+                    {item.status !== 'Received' && (
                       <button
                         onClick={() => onMarkStatus(item.id, 'Received')}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 min-h-[40px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"

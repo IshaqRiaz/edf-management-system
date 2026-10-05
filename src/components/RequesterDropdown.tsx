@@ -17,14 +17,12 @@ export const CATEGORY_REQUESTERS_MAP: Record<string, string[]> = {
   electrical: [
     'Azeem Karim',
     'Imran',
-    'Mohammad Azeem',
     'Rasheed',
     'Sarfraz Aziz',
     'Tanveer Ijaz',
   ],
   telephone: [
     'Azeem Karim',
-    'Mohammad Azeem',
   ],
   hvac: [
     'Ashraf',
@@ -61,7 +59,6 @@ const FALLBACK_REQUESTERS: string[] = [
   'Gulsher',
   'Imran',
   'Kamran Alam',
-  'Mohammad Azeem',
   'Nazim',
   'Rasheed',
   'Sarfraz Aziz',
@@ -93,6 +90,17 @@ export const RequesterDropdown: React.FC<RequesterDropdownProps> = ({
   const hasCategory = Boolean(category && category.trim());
   const effectiveDisabled = disabled || !hasCategory;
 
+  // Auto-migrate any value of "Mohammad Azeem" or "Muhammad Azeem" to "Azeem Karim"
+  useEffect(() => {
+    if (
+      value &&
+      (value.trim().toLowerCase() === 'mohammad azeem' ||
+        value.trim().toLowerCase() === 'muhammad azeem')
+    ) {
+      onChange('Azeem Karim');
+    }
+  }, [value, onChange]);
+
   // Fetch requesters on mount
   useEffect(() => {
     let isMounted = true;
@@ -113,26 +121,46 @@ export const RequesterDropdown: React.FC<RequesterDropdownProps> = ({
           list = FALLBACK_REQUESTERS.map((name, idx) => ({ id: idx + 1, name }));
         }
 
-        // Ensure both Azeem Karim and Mohammad Azeem are in the pool
-        if (!list.some((r) => r.name.toLowerCase() === 'mohammad azeem')) {
-          list.push({ id: 18, name: 'Mohammad Azeem' });
-        }
+        // Strictly remove Mohammad Azeem / Muhammad Azeem (same person as Azeem Karim)
+        list = list.filter(
+          (r) =>
+            r.name.toLowerCase() !== 'mohammad azeem' &&
+            r.name.toLowerCase() !== 'muhammad azeem'
+        );
+
+        // Ensure Azeem Karim is present
         if (!list.some((r) => r.name.toLowerCase() === 'azeem karim')) {
           list.push({ id: 2, name: 'Azeem Karim' });
         }
 
         // Preserve and display legacy requester value if not already in list
-        if (value && value.trim() && !list.some((r) => r.name.toLowerCase() === value.trim().toLowerCase())) {
-          list = [...list, { id: 999999, name: value.trim() }];
+        const valToKeep =
+          value &&
+          value.trim().toLowerCase() !== 'mohammad azeem' &&
+          value.trim().toLowerCase() !== 'muhammad azeem'
+            ? value.trim()
+            : null;
+        if (valToKeep && !list.some((r) => r.name.toLowerCase() === valToKeep.toLowerCase())) {
+          list = [...list, { id: 999999, name: valToKeep }];
         }
 
         setRequesters(list.sort((a, b) => a.name.localeCompare(b.name)));
       })
       .catch(() => {
         if (!isMounted) return;
-        let list = FALLBACK_REQUESTERS.map((name, idx) => ({ id: idx + 1, name }));
-        if (value && value.trim() && !list.some((r) => r.name.toLowerCase() === value.trim().toLowerCase())) {
-          list = [...list, { id: 999999, name: value.trim() }];
+        let list = FALLBACK_REQUESTERS.map((name, idx) => ({ id: idx + 1, name })).filter(
+          (r) =>
+            r.name.toLowerCase() !== 'mohammad azeem' &&
+            r.name.toLowerCase() !== 'muhammad azeem'
+        );
+        const valToKeep =
+          value &&
+          value.trim().toLowerCase() !== 'mohammad azeem' &&
+          value.trim().toLowerCase() !== 'muhammad azeem'
+            ? value.trim()
+            : null;
+        if (valToKeep && !list.some((r) => r.name.toLowerCase() === valToKeep.toLowerCase())) {
+          list = [...list, { id: 999999, name: valToKeep }];
         }
         setRequesters(list.sort((a, b) => a.name.localeCompare(b.name)));
       })
@@ -193,9 +221,15 @@ export const RequesterDropdown: React.FC<RequesterDropdownProps> = ({
       }
     });
 
-    // Preserve existing value if editing or already selected
-    if (value && value.trim() && !result.some((r) => r.name.toLowerCase() === value.trim().toLowerCase())) {
-      result.push({ id: 999999, name: value.trim() });
+    // Preserve existing value if editing or already selected (normalize Mohammad Azeem to Azeem Karim)
+    const normalizedVal =
+      value &&
+      (value.trim().toLowerCase() === 'mohammad azeem' ||
+        value.trim().toLowerCase() === 'muhammad azeem')
+        ? 'Azeem Karim'
+        : value;
+    if (normalizedVal && normalizedVal.trim() && !result.some((r) => r.name.toLowerCase() === normalizedVal.trim().toLowerCase())) {
+      result.push({ id: 999999, name: normalizedVal.trim() });
     }
 
     return result.sort((a, b) => a.name.localeCompare(b.name));

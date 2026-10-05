@@ -27,8 +27,8 @@ const initialStats: DashboardStats = {
   electrical: 0,
   general: 0,
   pending: 0,
+  partiallyReceived: 0,
   received: 0,
-  completed: 0,
   overdue: 0,
   recentActivity: [],
   categoryDistribution: [],
@@ -242,8 +242,8 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  // Mark status (Received / Completed)
-  const handleMarkStatus = async (id: number, status: 'Received' | 'Completed' | 'Pending') => {
+  // Mark status (Received / Partially Received / Pending)
+  const handleMarkStatus = async (id: number, status: 'Received' | 'Partially Received' | 'Pending') => {
     // Instant optimistic update: stop timer and clear overdue immediately
     setEdfs((prev) =>
       prev.map((e) =>
@@ -251,7 +251,7 @@ const MainLayout: React.FC = () => {
           ? {
               ...e,
               status,
-              isOverdue: status === 'Received' || status === 'Completed' ? false : e.isOverdue,
+              isOverdue: status === 'Received' ? false : e.isOverdue,
             }
           : e
       )

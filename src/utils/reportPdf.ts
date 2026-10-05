@@ -65,19 +65,19 @@ export function generateReportPdf({
 
   // 4. EXECUTIVE SUMMARY KPIS
   const total = edfs.length || 1;
-  const completedCount = edfs.filter((e) => e.status === 'Completed').length;
   const receivedCount = edfs.filter((e) => e.status === 'Received').length;
+  const partiallyReceivedCount = edfs.filter((e) => e.status === 'Partially Received').length;
   const pendingCount = edfs.filter((e) => e.status === 'Pending').length;
-  const overdueCount = edfs.filter((e) => e.status === 'Overdue' || e.isOverdue).length;
-  const fulfillmentRate = Math.round((completedCount / total) * 100);
+  const overdueCount = edfs.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Received').length;
+  const fulfillmentRate = Math.round((receivedCount / total) * 100);
 
   const kpiBoxWidth = (pageWidth - margin * 2 - 12) / 4;
   const kpiBoxHeight = 16;
 
   const kpis = [
     { title: 'Fulfillment Rate', value: `${fulfillmentRate}%`, color: [16, 185, 129] }, // Emerald
-    { title: 'Completed', value: `${completedCount}`, color: [5, 150, 105] }, // Dark Emerald
-    { title: 'Active / Pending', value: `${pendingCount + receivedCount}`, color: [2, 132, 199] }, // Sky
+    { title: 'Fully Received', value: `${receivedCount}`, color: [5, 150, 105] }, // Dark Emerald
+    { title: 'Partially Received', value: `${partiallyReceivedCount}`, color: [2, 132, 199] }, // Sky
     { title: 'Overdue Demands', value: `${overdueCount}`, color: [225, 29, 72] }, // Rose
   ];
 
@@ -110,18 +110,18 @@ export function generateReportPdf({
   const catRows = categories.map((cat) => {
     const catEdfs = edfs.filter((e) => e.category.toLowerCase() === cat.name.toLowerCase());
     const count = catEdfs.length;
-    const completed = catEdfs.filter((e) => e.status === 'Completed').length;
     const received = catEdfs.filter((e) => e.status === 'Received').length;
-    const overdue = catEdfs.filter((e) => e.status === 'Overdue' || e.isOverdue).length;
-    const pending = count - completed - overdue;
+    const partiallyReceived = catEdfs.filter((e) => e.status === 'Partially Received').length;
+    const overdue = catEdfs.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Received').length;
+    const pending = count - received - partiallyReceived - overdue;
     const share = Math.round((count / total) * 100);
 
-    return [cat.name, String(count), String(completed), String(received), String(Math.max(pending, 0)), String(overdue), `${share}%`];
+    return [cat.name, String(count), String(received), String(partiallyReceived), String(Math.max(pending, 0)), String(overdue), `${share}%`];
   });
 
   autoTable(doc, {
     startY: currentY,
-    head: [['Category', 'Total', 'Completed', 'Received', 'Pending', 'Overdue', 'Share']],
+    head: [['Category', 'Total', 'Received', 'Partially Received', 'Pending', 'Overdue', 'Share']],
     body: catRows,
     theme: 'grid',
     headStyles: {

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "timestamp": "2026-10-02T06:13:04.724Z",
+  "timestamp": "2026-10-05T08:35:09.369Z",
   "backupType": "auto",
   "edfs": [
     {
@@ -55,23 +55,6 @@
       "updatedAt": "2026-09-25T10:23:57.858Z"
     },
     {
-      "id": 5,
-      "edfNumber": "EDF-2026-005",
-      "requesterName": "Ayesha Khan",
-      "category": "Telephone",
-      "issueDate": "2026-09-19T10:23:57.544Z",
-      "requiredDate": "2026-09-23T10:23:57.544Z",
-      "materialList": "Panasonic KX-T7730 Display Phone, 100m 2-Pair Drop Wire",
-      "quantity": 3,
-      "unit": "units",
-      "status": "Completed",
-      "priority": "Medium",
-      "remarks": "Accounts department extensions reconfigured and tested OK.",
-      "createdBy": "03001234567",
-      "createdAt": "2026-09-25T10:23:57.956Z",
-      "updatedAt": "2026-09-25T10:23:57.956Z"
-    },
-    {
       "id": 6,
       "edfNumber": "EDF-2026-006",
       "requesterName": "Kamran Malik",
@@ -121,6 +104,23 @@
       "createdBy": "03001234567",
       "createdAt": "2026-10-02T06:01:48.500Z",
       "updatedAt": "2026-10-02T06:01:48.500Z"
+    },
+    {
+      "id": 5,
+      "edfNumber": "EDF-2026-005",
+      "requesterName": "Ayesha Khan",
+      "category": "Telephone",
+      "issueDate": "2026-09-19T10:23:57.544Z",
+      "requiredDate": "2026-09-23T10:23:57.544Z",
+      "materialList": "Panasonic KX-T7730 Display Phone, 100m 2-Pair Drop Wire",
+      "quantity": 3,
+      "unit": "units",
+      "status": "Received",
+      "priority": "Medium",
+      "remarks": "Accounts department extensions reconfigured and tested OK.",
+      "createdBy": "03001234567",
+      "createdAt": "2026-09-25T10:23:57.956Z",
+      "updatedAt": "2026-10-05T08:29:58.739Z"
     }
   ],
   "edfItems": [
@@ -130,6 +130,9 @@
       "itemDescription": "Chiller Compressor Oil (R134a), 2x Filter Driers",
       "quantity": 2,
       "unit": "sets",
+      "status": "Pending",
+      "receivedAt": null,
+      "receivedBy": null,
       "createdAt": "2026-09-25T10:23:57.617Z"
     },
     {
@@ -138,6 +141,9 @@
       "itemDescription": "Fuel Filter Fleetguard FF5052, Primary Lube Filter LF9009",
       "quantity": 4,
       "unit": "pcs",
+      "status": "Pending",
+      "receivedAt": null,
+      "receivedBy": null,
       "createdAt": "2026-09-25T10:23:57.714Z"
     },
     {
@@ -146,6 +152,9 @@
       "itemDescription": "Schneider 3-Phase 63A MCB Breaker, 4-core 16mm Copper Cable (50m)",
       "quantity": 50,
       "unit": "meters",
+      "status": "Pending",
+      "receivedAt": null,
+      "receivedBy": null,
       "createdAt": "2026-09-25T10:23:57.810Z"
     },
     {
@@ -154,6 +163,9 @@
       "itemDescription": "Grundfos Booster Pump Mechanical Seal Kit, 2\" Brass Check Valve",
       "quantity": 2,
       "unit": "kits",
+      "status": "Pending",
+      "receivedAt": null,
+      "receivedBy": null,
       "createdAt": "2026-09-25T10:23:57.907Z"
     },
     {
@@ -162,6 +174,9 @@
       "itemDescription": "Panasonic KX-T7730 Display Phone, 100m 2-Pair Drop Wire",
       "quantity": 3,
       "unit": "units",
+      "status": "Pending",
+      "receivedAt": null,
+      "receivedBy": null,
       "createdAt": "2026-09-25T10:23:58.004Z"
     },
     {
@@ -170,6 +185,9 @@
       "itemDescription": "Hydraulic Door Closers (Heavy Duty), Stainless Steel Hinges",
       "quantity": 6,
       "unit": "sets",
+      "status": "Pending",
+      "receivedAt": null,
+      "receivedBy": null,
       "createdAt": "2026-09-25T10:23:58.102Z"
     },
     {
@@ -178,6 +196,9 @@
       "itemDescription": "Freon Gas R410A Cylinders",
       "quantity": 3,
       "unit": "cylinders",
+      "status": "Pending",
+      "receivedAt": null,
+      "receivedBy": null,
       "createdAt": "2026-10-02T06:01:48.559Z"
     },
     {
@@ -186,6 +207,9 @@
       "itemDescription": "Charging Hose Set",
       "quantity": 1,
       "unit": "set",
+      "status": "Pending",
+      "receivedAt": null,
+      "receivedBy": null,
       "createdAt": "2026-10-02T06:01:48.622Z"
     }
   ],

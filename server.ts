@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { eq, desc, asc, and, or, ilike, inArray } from 'drizzle-orm';
+import { eq, desc, asc, and, or, ilike, inArray, sql } from 'drizzle-orm';
 import { db } from './src/db/index.ts';
 import { users, categories, edfs, edfItems, activityLogs, edfStatusHistory, requesters, edfBackups, systemSettings } from './src/db/schema.ts';
 import { seedDatabase, DEFAULT_REQUESTER_NAMES } from './src/db/seed.ts';
@@ -524,6 +524,13 @@ app.get('/api/requesters', authenticate, async (_req: Request, res: Response) =>
       list = await db.select().from(requesters).orderBy(asc(requesters.name));
     }
 
+    // Strictly remove Mohammad Azeem / Muhammad Azeem (duplicate of Azeem Karim)
+    list = list.filter(
+      (r) =>
+        r.name.toLowerCase() !== 'mohammad azeem' &&
+        r.name.toLowerCase() !== 'muhammad azeem'
+    );
+
     res.json(list);
   } catch (error) {
     console.error('Failed to fetch requesters:', error);
@@ -539,7 +546,14 @@ app.post('/api/requesters', authenticate, async (req: AuthRequest, res: Response
       return res.status(400).json({ error: 'Requester name is required' });
     }
 
-    const cleanName = name.trim();
+    let cleanName = name.trim();
+    if (
+      cleanName.toLowerCase() === 'mohammad azeem' ||
+      cleanName.toLowerCase() === 'muhammad azeem'
+    ) {
+      cleanName = 'Azeem Karim';
+    }
+
     const existing = await db.select().from(requesters).where(eq(requesters.name, cleanName)).limit(1);
     if (existing.length > 0) {
       return res.json(existing[0]);
@@ -662,9 +676,7 @@ app.get('/api/edfs', authenticate, async (req: Request, res: Response) => {
       const isPast = parseRequiredDateServer(item.requiredDate).getTime() < now.getTime();
 
       let currentStatus = item.status;
-      if (item.status === 'Completed') {
-        currentStatus = 'Completed';
-      } else if (totalCount > 0 && receivedCount === totalCount) {
+      if (item.status === 'Completed' || (totalCount > 0 && receivedCount === totalCount)) {
         currentStatus = 'Received';
       } else if (totalCount > 0 && receivedCount > 0) {
         currentStatus = 'Partially Received';
@@ -674,9 +686,9 @@ app.get('/api/edfs', authenticate, async (req: Request, res: Response) => {
         currentStatus = 'Pending';
       }
 
-      // If all items received or completed, timer stops and not overdue.
+      // If all items received, timer stops and not overdue.
       // If partially received or pending, timer continues tracking remaining items.
-      const isOverdue = (currentStatus !== 'Received' && currentStatus !== 'Completed') && isPast;
+      const isOverdue = currentStatus !== 'Received' && isPast;
 
       return {
         ...item,
@@ -698,11 +710,7 @@ app.get('/api/edfs', authenticate, async (req: Request, res: Response) => {
 
     if (status && status !== 'All') {
       const st = String(status).toLowerCase();
-      if (st === 'pending') {
-        filtered = filtered.filter((e) => e.status.toLowerCase() === 'pending' || e.status.toLowerCase() === 'partially received');
-      } else {
-        filtered = filtered.filter((e) => e.status.toLowerCase() === st);
-      }
+      filtered = filtered.filter((e) => e.status.toLowerCase() === st);
     }
 
     if (overdue === 'true') {
@@ -750,9 +758,7 @@ app.get('/api/edfs/:id', authenticate, async (req: Request, res: Response) => {
     const isPast = parseRequiredDateServer(item.requiredDate).getTime() < Date.now();
 
     let computedStatus = item.status;
-    if (item.status === 'Completed') {
-      computedStatus = 'Completed';
-    } else if (totalCount > 0 && receivedCount === totalCount) {
+    if (item.status === 'Completed' || (totalCount > 0 && receivedCount === totalCount)) {
       computedStatus = 'Received';
     } else if (totalCount > 0 && receivedCount > 0) {
       computedStatus = 'Partially Received';
@@ -762,7 +768,7 @@ app.get('/api/edfs/:id', authenticate, async (req: Request, res: Response) => {
       computedStatus = 'Pending';
     }
 
-    const isOverdue = (computedStatus !== 'Received' && computedStatus !== 'Completed') && isPast;
+    const isOverdue = computedStatus !== 'Received' && isPast;
 
     // Fallback if no history was recorded previously
     if (statusHistory.length === 0) {
@@ -1311,9 +1317,9 @@ app.put('/api/edfs/:id', authenticate, requireAdmin, async (req: AuthRequest, re
 app.post('/api/edfs/:id/mark-status', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const edfId = parseInt(req.params.id, 10);
-    const { status } = req.body; // 'Received' | 'Completed' | 'Pending'
+    const { status } = req.body; // 'Received' | 'Partially Received' | 'Pending'
 
-    if (!['Received', 'Completed', 'Pending'].includes(status)) {
+    if (!['Received', 'Partially Received', 'Pending'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
@@ -1331,8 +1337,8 @@ app.post('/api/edfs/:id/mark-status', authenticate, async (req: AuthRequest, res
     const roleTag = req.user?.role === 'admin' ? '[Admin]' : '[Viewer]';
     const actorName = req.user?.name ? `${req.user.name} ${roleTag}` : `User ${roleTag}`;
 
-    // When marked Received or Completed, mark all material items under this EDF as Received
-    if (status === 'Received' || status === 'Completed') {
+    // When marked Received, mark all material items under this EDF as Received
+    if (status === 'Received') {
       await db
         .update(edfItems)
         .set({
@@ -1375,7 +1381,7 @@ app.post('/api/edfs/:id/mark-status', authenticate, async (req: AuthRequest, res
       req
     );
 
-    const actionText = status === 'Received' ? `${updated.edfNumber} Marked as Received` : status === 'Completed' ? `${updated.edfNumber} Completed` : `${updated.edfNumber} Marked as Pending`;
+    const actionText = status === 'Received' ? `${updated.edfNumber} Marked as Received` : `${updated.edfNumber} Marked as ${status}`;
     await logActivity(actionText, updated.edfNumber, req);
 
     takeDatabaseBackup('auto').catch(console.error);
@@ -1623,23 +1629,14 @@ app.post('/api/edfs/bulk-action', authenticate, requireAdmin, async (req: AuthRe
     if (action === 'mark-received') {
       const targetEdfs = await db.select().from(edfs).where(inArray(edfs.id, intIds));
       await db.update(edfs).set({ status: 'Received', updatedAt: new Date() }).where(inArray(edfs.id, intIds));
+      // Mark all items under these EDFs as Received as well
+      await db.update(edfItems).set({ status: 'Received', receivedAt: new Date() }).where(inArray(edfItems.edfId, intIds));
       for (const item of targetEdfs) {
         await recordStatusHistory(item.id, item.edfNumber, 'Received', item.status, 'Bulk action: Marked as Received', req);
       }
       await logActivity(`Bulk marked ${intIds.length} EDFs as Received`, undefined, req);
       takeDatabaseBackup('auto').catch(console.error);
       return res.json({ success: true, count: intIds.length, message: `${intIds.length} EDF(s) marked as Received` });
-    }
-
-    if (action === 'mark-completed') {
-      const targetEdfs = await db.select().from(edfs).where(inArray(edfs.id, intIds));
-      await db.update(edfs).set({ status: 'Completed', updatedAt: new Date() }).where(inArray(edfs.id, intIds));
-      for (const item of targetEdfs) {
-        await recordStatusHistory(item.id, item.edfNumber, 'Completed', item.status, 'Bulk action: Marked as Completed', req);
-      }
-      await logActivity(`Bulk completed ${intIds.length} EDFs`, undefined, req);
-      takeDatabaseBackup('auto').catch(console.error);
-      return res.json({ success: true, count: intIds.length, message: `${intIds.length} EDF(s) marked as Completed` });
     }
 
     res.status(400).json({ error: 'Invalid bulk action' });
@@ -1694,9 +1691,7 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
       const isPast = parseRequiredDateServer(item.requiredDate).getTime() < now.getTime();
 
       let currentStatus = item.status;
-      if (item.status === 'Completed') {
-        currentStatus = 'Completed';
-      } else if (totalCount > 0 && receivedCount === totalCount) {
+      if (item.status === 'Completed' || (totalCount > 0 && receivedCount === totalCount)) {
         currentStatus = 'Received';
       } else if (totalCount > 0 && receivedCount > 0) {
         currentStatus = 'Partially Received';
@@ -1706,7 +1701,7 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
         currentStatus = 'Pending';
       }
 
-      const isOverdue = (currentStatus !== 'Received' && currentStatus !== 'Completed') && isPast;
+      const isOverdue = currentStatus !== 'Received' && isPast;
 
       return {
         ...item,
@@ -1725,11 +1720,10 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
     const electrical = list.filter((e) => e.category.toLowerCase() === 'electrical').length;
     const general = list.filter((e) => e.category.toLowerCase() === 'general').length;
 
-    // Per Requirement 6: The EDF should remain under Pending while it is only partially received.
+    // Per Prompt Requirements: Pending (0 received), Partially Received (1..n-1 received), Received (all received)
     const partiallyReceived = list.filter((e) => e.status === 'Partially Received').length;
-    const pending = list.filter((e) => e.status === 'Pending' || e.status === 'Partially Received').length;
+    const pending = list.filter((e) => e.status === 'Pending').length;
     const received = list.filter((e) => e.status === 'Received').length;
-    const completed = list.filter((e) => e.status === 'Completed').length;
     const overdue = list.filter((e) => e.isOverdue).length;
 
     // Recent activity logs (up to 30 for filtering)
@@ -1774,7 +1768,7 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
       pending,
       partiallyReceived,
       received,
-      completed,
+      completed: 0,
       overdue,
       recentActivity,
       creationHistory7Days,
@@ -1788,8 +1782,8 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
       ],
       statusDistribution: [
         { name: 'Pending', count: pending, color: '#f59e0b' },
-        { name: 'Received', count: received, color: '#3b82f6' },
-        { name: 'Completed', count: completed, color: '#10b981' },
+        { name: 'Partially Received', count: partiallyReceived, color: '#8b5cf6' },
+        { name: 'Received', count: received, color: '#10b981' },
         { name: 'Overdue', count: overdue, color: '#ef4444' },
       ],
     });
@@ -1841,6 +1835,34 @@ app.post('/api/system/restore', authenticate, requireAdmin, async (req: AuthRequ
 
 async function startServer() {
   const isDev = process.env.NODE_ENV !== 'production';
+
+  // Safely migrate any legacy 'Completed' status records to 'Received'
+  try {
+    await db.update(edfs).set({ status: 'Received', updatedAt: new Date() }).where(eq(edfs.status, 'Completed'));
+  } catch (migErr) {
+    console.error('Completed status safe migration notice:', migErr);
+  }
+
+  // Safely merge and remove Muhammad Azeem / Mohammad Azeem into Azeem Karim
+  try {
+    await db.execute(sql`
+      UPDATE edfs
+      SET requester_name = 'Azeem Karim'
+      WHERE LOWER(requester_name) IN ('mohammad azeem', 'muhammad azeem');
+    `).catch(() => {});
+    await db.execute(sql`
+      UPDATE edf_status_history
+      SET requester_name = 'Azeem Karim'
+      WHERE LOWER(requester_name) IN ('mohammad azeem', 'muhammad azeem');
+    `).catch(() => {});
+    await db.execute(sql`
+      DELETE FROM requesters
+      WHERE LOWER(name) IN ('mohammad azeem', 'muhammad azeem');
+    `).catch(() => {});
+    await db.insert(requesters).values({ name: 'Azeem Karim' }).onConflictDoNothing().catch(() => {});
+  } catch (azeemErr) {
+    console.error('Muhammad Azeem safe merge notice:', azeemErr);
+  }
 
   if (isDev) {
     const { createServer: createViteServer } = await import('vite');

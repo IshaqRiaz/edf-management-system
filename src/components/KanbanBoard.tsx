@@ -32,11 +32,11 @@ interface KanbanBoardProps {
   onViewEdf: (edf: EDF) => void;
   onEditEdf?: (edf: EDF) => void;
   onOpenCreate: () => void;
-  onMarkStatus: (id: number, status: 'Pending' | 'Received' | 'Completed') => Promise<void> | void;
+  onMarkStatus: (id: number, status: 'Pending' | 'Partially Received' | 'Received') => Promise<void> | void;
   isAdmin: boolean;
 }
 
-type ColumnKey = 'Pending' | 'Received' | 'Completed';
+type ColumnKey = 'Pending' | 'Partially Received' | 'Received';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -54,7 +54,7 @@ const COLUMNS: ColumnConfig[] = [
   {
     key: 'Pending',
     title: 'Pending',
-    subtitle: 'Awaiting fulfillment & review',
+    subtitle: '0 items received',
     icon: Clock,
     headerBg: 'bg-amber-500/10 dark:bg-amber-500/15 border-amber-200 dark:border-amber-900/50',
     badgeBg: 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-300 dark:border-amber-800',
@@ -63,20 +63,20 @@ const COLUMNS: ColumnConfig[] = [
     indicatorColor: 'bg-amber-500',
   },
   {
-    key: 'Received',
-    title: 'Received',
-    subtitle: 'Materials received & verified',
+    key: 'Partially Received',
+    title: 'Partially Received',
+    subtitle: 'Some items received',
     icon: PackageCheck,
-    headerBg: 'bg-indigo-500/10 dark:bg-indigo-500/15 border-indigo-200 dark:border-indigo-900/50',
-    badgeBg: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800',
-    dropRing: 'ring-2 ring-indigo-500/60 bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-400',
-    iconColor: 'text-indigo-600 dark:text-indigo-400',
-    indicatorColor: 'bg-indigo-500',
+    headerBg: 'bg-sky-500/10 dark:bg-sky-500/15 border-sky-200 dark:border-sky-900/50',
+    badgeBg: 'bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border-sky-300 dark:border-sky-800',
+    dropRing: 'ring-2 ring-sky-500/60 bg-sky-50/40 dark:bg-sky-950/20 border-sky-400',
+    iconColor: 'text-sky-600 dark:text-sky-400',
+    indicatorColor: 'bg-sky-500',
   },
   {
-    key: 'Completed',
-    title: 'Completed',
-    subtitle: 'Fulfilled & closed demands',
+    key: 'Received',
+    title: 'Received',
+    subtitle: 'All items received & verified',
     icon: CheckCircle2,
     headerBg: 'bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-900/50',
     badgeBg: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800',
@@ -141,41 +141,53 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   // Group into columns
   const columnsData = useMemo(() => {
     const pendingList: EDF[] = [];
+    const partiallyReceivedList: EDF[] = [];
     const receivedList: EDF[] = [];
-    const completedList: EDF[] = [];
 
     for (const item of filteredEdfs) {
-      if (item.status === 'Completed') {
-        completedList.push(item);
+      const totalItems = item.totalItemsCount ?? (item.items ? item.items.length : 1);
+      const receivedItems =
+        item.receivedItemsCount ??
+        (item.items
+          ? item.items.filter((i) => i.status === 'Received').length
+          : item.status === 'Received'
+            ? totalItems
+            : 0);
+
+      if (receivedItems >= totalItems && totalItems > 0) {
+        receivedList.push(item);
+      } else if (receivedItems > 0 && receivedItems < totalItems) {
+        partiallyReceivedList.push(item);
       } else if (item.status === 'Received') {
         receivedList.push(item);
+      } else if (item.status === 'Partially Received') {
+        partiallyReceivedList.push(item);
       } else {
-        // 'Pending', 'Overdue', or other active status falls under Pending
         pendingList.push(item);
       }
     }
 
     return {
       Pending: pendingList,
+      'Partially Received': partiallyReceivedList,
       Received: receivedList,
-      Completed: completedList,
     };
   }, [filteredEdfs]);
 
   // Total counts & percentages
   const totalCount = edfs.length;
-  const pendingCount = edfs.filter((e) => e.status !== 'Received' && e.status !== 'Completed').length;
-  const receivedCount = edfs.filter((e) => e.status === 'Received').length;
-  const completedCount = edfs.filter((e) => e.status === 'Completed').length;
+  const pendingCount = columnsData.Pending.length;
+  const partiallyReceivedCount = columnsData['Partially Received'].length;
+  const receivedCount = columnsData.Received.length;
   const overdueTotalCount = edfs.filter((e) => {
-    if (e.status === 'Completed' || e.status === 'Received') return false;
+    if (e.status === 'Received') return false;
     const timer = calculateLiveTimer(e.requiredDate, e.status);
     return timer.isOverdue || e.status === 'Overdue' || e.isOverdue;
   }).length;
 
   const pendingPct = totalCount ? Math.round((pendingCount / totalCount) * 100) : 0;
+  const partiallyReceivedPct = totalCount ? Math.round((partiallyReceivedCount / totalCount) * 100) : 0;
   const receivedPct = totalCount ? Math.round((receivedCount / totalCount) * 100) : 0;
-  const completedPct = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
 
   // Drag Handlers
   const handleDragStart = (e: React.DragEvent, id: number) => {
@@ -218,8 +230,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     if (!item) return;
 
     // Normalizing current status
-    const currentStatus =
-      item.status === 'Completed' ? 'Completed' : item.status === 'Received' ? 'Received' : 'Pending';
+    const currentStatus: ColumnKey =
+      item.status === 'Received'
+        ? 'Received'
+        : item.status === 'Partially Received'
+          ? 'Partially Received'
+          : 'Pending';
 
     if (currentStatus === targetCol) return;
 
@@ -289,13 +305,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                 Pending: {pendingCount} ({pendingPct}%)
               </span>
-              <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
-                <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                Received: {receivedCount} ({receivedPct}%)
+              <span className="flex items-center gap-1.5 text-sky-600 dark:text-sky-400">
+                <span className="w-2 h-2 rounded-full bg-sky-500" />
+                Partially Received: {partiallyReceivedCount} ({partiallyReceivedPct}%)
               </span>
               <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                Completed: {completedCount} ({completedPct}%)
+                Received: {receivedCount} ({receivedPct}%)
               </span>
             </div>
           </div>
@@ -308,14 +324,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               title={`Pending: ${pendingCount} (${pendingPct}%)`}
             />
             <div
-              style={{ width: `${receivedPct}%` }}
-              className="bg-indigo-600 transition-all duration-500 hover:brightness-110"
-              title={`Received: ${receivedCount} (${receivedPct}%)`}
+              style={{ width: `${partiallyReceivedPct}%` }}
+              className="bg-sky-500 transition-all duration-500 hover:brightness-110"
+              title={`Partially Received: ${partiallyReceivedCount} (${partiallyReceivedPct}%)`}
             />
             <div
-              style={{ width: `${completedPct}%` }}
+              style={{ width: `${receivedPct}%` }}
               className="bg-emerald-500 transition-all duration-500 hover:brightness-110"
-              title={`Completed: ${completedCount} (${completedPct}%)`}
+              title={`Received: ${receivedCount} (${receivedPct}%)`}
             />
           </div>
         </div>
@@ -545,7 +561,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {/* Overdue or Status Pill */}
-                            {isOverdue && col.key !== 'Completed' && (
+                            {isOverdue && col.key !== 'Received' && (
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider bg-red-50 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-200 dark:border-red-900 animate-pulse-subtle">
                                 Overdue
                               </span>
@@ -637,57 +653,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                             ) : (
                               <>
                                 {/* Mark Received is available to both Admin and Viewer */}
-                                {col.key === 'Pending' && (
+                                {(col.key === 'Pending' || col.key === 'Partially Received') && (
                                   <button
                                     onClick={() => handleQuickStatus(edf.id, 'Received')}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-900/60 transition-colors cursor-pointer"
-                                    title="Mark as Received (Stops live timer)"
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-900/60 transition-colors cursor-pointer"
+                                    title="Mark all items as Received"
                                   >
                                     <PackageCheck className="w-3 h-3" />
-                                    <span>Received</span>
-                                  </button>
-                                )}
-
-                                {isAdmin && col.key === 'Pending' && (
-                                  <button
-                                    onClick={() => handleQuickStatus(edf.id, 'Completed')}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-900/60 transition-colors cursor-pointer"
-                                    title="Mark as Completed"
-                                  >
-                                    <Check className="w-3 h-3" />
-                                    <span>Complete</span>
+                                    <span>Mark Received</span>
                                   </button>
                                 )}
 
                                 {isAdmin && col.key === 'Received' && (
-                                  <>
-                                    <button
-                                      onClick={() => handleQuickStatus(edf.id, 'Pending')}
-                                      className="flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition-colors cursor-pointer"
-                                      title="Revert to Pending"
-                                    >
-                                      <ArrowLeft className="w-3 h-3" />
-                                      <span>Pending</span>
-                                    </button>
-                                    <button
-                                      onClick={() => handleQuickStatus(edf.id, 'Completed')}
-                                      className="flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-900/60 transition-colors cursor-pointer"
-                                      title="Mark Completed"
-                                    >
-                                      <Check className="w-3 h-3" />
-                                      <span>Complete</span>
-                                    </button>
-                                  </>
-                                )}
-
-                                {isAdmin && col.key === 'Completed' && (
                                   <button
                                     onClick={() => handleQuickStatus(edf.id, 'Pending')}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition-colors cursor-pointer"
+                                    className="flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition-colors cursor-pointer"
                                     title="Reopen demand form as Pending"
                                   >
-                                    <RotateCcw className="w-3 h-3" />
-                                    <span>Reopen</span>
+                                    <ArrowLeft className="w-3 h-3" />
+                                    <span>Reopen Pending</span>
                                   </button>
                                 )}
                               </>

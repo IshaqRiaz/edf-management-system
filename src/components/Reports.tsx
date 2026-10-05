@@ -85,7 +85,7 @@ export const Reports: React.FC<ReportsProps> = ({
       }
       if (selectedStatus !== 'All') {
         if (selectedStatus === 'Overdue') {
-          const isOverdue = (item.status === 'Overdue' || item.isOverdue) && item.status !== 'Completed' && item.status !== 'Received';
+          const isOverdue = (item.status === 'Overdue' || item.isOverdue) && item.status !== 'Received';
           if (!isOverdue) return false;
         } else if (item.status.toLowerCase() !== selectedStatus.toLowerCase()) {
           return false;
@@ -97,11 +97,11 @@ export const Reports: React.FC<ReportsProps> = ({
 
   const total = edfs.length || 1;
   const filteredTotal = filtered.length || 1;
-  const completedCount = filtered.filter((e) => e.status === 'Completed').length;
-  const overdueCount = filtered.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Completed' && e.status !== 'Received').length;
   const receivedCount = filtered.filter((e) => e.status === 'Received').length;
+  const partiallyReceivedCount = filtered.filter((e) => e.status === 'Partially Received').length;
+  const overdueCount = filtered.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Received').length;
   const pendingCount = filtered.filter((e) => e.status === 'Pending').length;
-  const fulfillmentRate = Math.round((completedCount / filteredTotal) * 100);
+  const fulfillmentRate = Math.round((receivedCount / filteredTotal) * 100);
 
   // Filtered audit logs
   const filteredLogs = useMemo(() => {
@@ -372,8 +372,8 @@ export const Reports: React.FC<ReportsProps> = ({
                 >
                   <option value="All">All Statuses</option>
                   <option value="Pending">Pending</option>
+                  <option value="Partially Received">Partially Received</option>
                   <option value="Received">Received</option>
-                  <option value="Completed">Completed</option>
                   <option value="Overdue">Overdue Only</option>
                 </select>
               </div>
@@ -420,28 +420,28 @@ export const Reports: React.FC<ReportsProps> = ({
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-[11px] font-black tracking-wider text-slate-400 mb-1">
-                Completed Demands
+                Partially Received
               </p>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-slate-900 dark:text-white">
-                  {completedCount}
+                <span className="text-3xl font-black text-sky-600 dark:text-sky-400">
+                  {partiallyReceivedCount}
                 </span>
-                <span className="text-xs text-emerald-600 font-bold">Delivered</span>
+                <span className="text-xs text-sky-600 font-bold">In-Progress</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-2 font-medium">Fulfilled without outstanding items</p>
+              <p className="text-[11px] text-slate-400 mt-2 font-medium">Some, but not all items arrived</p>
             </div>
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-[11px] font-black tracking-wider text-slate-400 mb-1">
-                Active / In-Transit
+                Fully Received
               </p>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-black text-sky-600 dark:text-sky-400">
-                  {receivedCount + pendingCount}
+                <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
+                  {receivedCount}
                 </span>
-                <span className="text-xs text-slate-400 font-medium">{pendingCount} Pending • {receivedCount} Received</span>
+                <span className="text-xs text-slate-400 font-medium">{pendingCount} Pending</span>
               </div>
-              <p className="text-[11px] text-slate-400 mt-2 font-medium">Currently undergoing delivery & inspection</p>
+              <p className="text-[11px] text-slate-400 mt-2 font-medium">All material items verified & in stock</p>
             </div>
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
@@ -473,8 +473,8 @@ export const Reports: React.FC<ReportsProps> = ({
                   <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4 text-center">Total Demands</th>
-                    <th className="py-3 px-4 text-center">Completed</th>
                     <th className="py-3 px-4 text-center">Received</th>
+                    <th className="py-3 px-4 text-center">Partially Received</th>
                     <th className="py-3 px-4 text-center">Pending</th>
                     <th className="py-3 px-4 text-center">Overdue</th>
                     <th className="py-3 px-4 text-right">Share</th>
@@ -486,9 +486,9 @@ export const Reports: React.FC<ReportsProps> = ({
                       (e) => e.category.toLowerCase() === cat.name.toLowerCase()
                     );
                     const count = catEdfs.length;
-                    const completed = catEdfs.filter((e) => e.status === 'Completed').length;
                     const received = catEdfs.filter((e) => e.status === 'Received').length;
-                    const overdue = catEdfs.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Completed' && e.status !== 'Received').length;
+                    const partiallyReceived = catEdfs.filter((e) => e.status === 'Partially Received').length;
+                    const overdue = catEdfs.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Received').length;
                     const pending = catEdfs.filter((e) => e.status === 'Pending' && !e.isOverdue).length;
                     const share = filteredTotal > 0 ? Math.round((count / filteredTotal) * 100) : 0;
 
@@ -501,10 +501,10 @@ export const Reports: React.FC<ReportsProps> = ({
                           {count}
                         </td>
                         <td className="py-2.5 px-4 text-center font-semibold text-emerald-600">
-                          {completed}
+                          {received}
                         </td>
                         <td className="py-2.5 px-4 text-center font-semibold text-sky-600">
-                          {received}
+                          {partiallyReceived}
                         </td>
                         <td className="py-2.5 px-4 text-center font-semibold text-amber-600">
                           {pending}
@@ -566,7 +566,7 @@ export const Reports: React.FC<ReportsProps> = ({
                     </tr>
                   ) : (
                     filtered.map((item) => {
-                      const isOverdue = (item.status === 'Overdue' || item.isOverdue) && item.status !== 'Completed' && item.status !== 'Received';
+                      const isOverdue = (item.status === 'Overdue' || item.isOverdue) && item.status !== 'Received';
                       return (
                         <tr
                           key={item.id}
@@ -599,9 +599,9 @@ export const Reports: React.FC<ReportsProps> = ({
                               className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
                                 isOverdue
                                   ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
-                                  : item.status === 'Completed'
-                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
                                   : item.status === 'Received'
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                  : item.status === 'Partially Received'
                                   ? 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
                                   : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
                               }`}

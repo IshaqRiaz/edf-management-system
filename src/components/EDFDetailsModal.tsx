@@ -30,7 +30,7 @@ interface EDFDetailsModalProps {
   edf: EDF | null;
   onClose: () => void;
   onEdit?: (edf: EDF) => void;
-  onMarkStatus?: (id: number, status: 'Received' | 'Completed' | 'Pending') => void;
+  onMarkStatus?: (id: number, status: 'Received' | 'Partially Received' | 'Pending') => void;
   onReceiveItems?: (edfId: number, itemIds: number[]) => Promise<void>;
   onUndoItemReceived?: (edfId: number, itemId: number) => Promise<void>;
   isAdmin: boolean;
@@ -119,10 +119,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             itemDescription: edf.materialList,
             quantity: edf.quantity,
             unit: edf.unit,
-            status:
-              edf.status === 'Received' || edf.status === 'Completed'
-                ? 'Received'
-                : 'Pending',
+            status: edf.status === 'Received' ? 'Received' : 'Pending',
           },
         ];
 
@@ -134,9 +131,6 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
 
   // Status text according to Requirement 4
   const getStatusDisplayLabel = () => {
-    if (edf.status === 'Completed') {
-      return `Completed — ${totalItemsCount} of ${totalItemsCount} received`;
-    }
     if (allReceived || edf.status === 'Received') {
       return `Received — ${totalItemsCount} of ${totalItemsCount} items received`;
     }
@@ -741,30 +735,17 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
 
             <div className="flex items-center gap-2 ml-auto">
               {/* Mark All as Received - available to both Admin and Viewer */}
-              {edf.status !== 'Received' && edf.status !== 'Completed' && (
+              {edf.status !== 'Received' && (
                 <button
                   onClick={() => {
                     if (onMarkStatus) onMarkStatus(edf.id, 'Received');
                     onClose();
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
                   title="Mark entire EDF as Received (Stops live timer)"
                 >
                   <PackageCheck className="w-4 h-4" />
                   <span>Mark All as Received</span>
-                </button>
-              )}
-
-              {isAdmin && edf.status !== 'Completed' && (
-                <button
-                  onClick={() => {
-                    if (onMarkStatus) onMarkStatus(edf.id, 'Completed');
-                    onClose();
-                  }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Mark as Completed</span>
                 </button>
               )}
             </div>

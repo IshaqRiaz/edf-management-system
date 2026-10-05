@@ -115,7 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     let overdue = 0;
     let due24h = 0;
     for (const e of edfs) {
-      if (e.status === 'Received' || e.status === 'Completed') continue;
+      if (e.status === 'Received') continue;
       const timer = calculateLiveTimer(e.requiredDate);
       if (timer.isOverdue || e.status === 'Overdue' || !!e.isOverdue) {
         overdue++;
@@ -199,7 +199,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     // Seed 2-3 recent status items if history array is completely empty on fresh setup
     if (notifications.length === 0 && Object.keys(prevStatuses).length === 0) {
       const recentUpdates = edfs
-        .filter((e) => e.status === 'Completed' || e.status === 'Received')
+        .filter((e) => e.status === 'Received' || e.status === 'Partially Received')
         .slice(0, 3);
       recentUpdates.forEach((item, idx) => {
         newAlerts.push({

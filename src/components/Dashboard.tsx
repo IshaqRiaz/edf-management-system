@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { DashboardStats, EDF } from '../types.ts';
 import { useTheme, AccentColor } from '../context/ThemeContext.tsx';
+import { StatusLegend } from './StatusLegend.tsx';
 import {
   ResponsiveContainer,
   LineChart,
@@ -19,6 +20,7 @@ import {
   Sparkles,
   Layers,
   Clock,
+  Package,
   PackageCheck,
   CheckCircle2,
   AlertOctagon,
@@ -152,14 +154,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Count partially received EDFs to recognize partial receiving in dashboard
   const partiallyReceivedCount = useMemo(() => {
-    return edfs.filter(
-      (e) =>
+    return edfs.filter((e) => {
+      if (e.status === 'Received') return false;
+      const rawItems = e.items || [];
+      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+      const recCount =
+        e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+      return (
         e.status === 'Partially Received' ||
-        (e.receivedItemsCount !== undefined &&
-          e.totalItemsCount !== undefined &&
-          e.receivedItemsCount > 0 &&
-          e.receivedItemsCount < e.totalItemsCount)
-    ).length;
+        (recCount > 0 && recCount < totalCount)
+      );
+    }).length;
+  }, [edfs]);
+
+  // Count fully received EDFs
+  const fullyReceivedCount = useMemo(() => {
+    return edfs.filter((e) => {
+      if (e.status === 'Received') return true;
+      const rawItems = e.items || [];
+      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+      const recCount =
+        e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+      return recCount >= totalCount && totalCount > 0;
+    }).length;
+  }, [edfs]);
+
+  // Count strictly pending EDFs (0 items received)
+  const strictlyPendingCount = useMemo(() => {
+    return edfs.filter((e) => {
+      if (e.status === 'Received') return false;
+      const rawItems = e.items || [];
+      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+      const recCount =
+        e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+      return recCount === 0 && e.status !== 'Partially Received';
+    }).length;
   }, [edfs]);
 
   // Frequency of EDF creation over the last 7 days
@@ -398,7 +427,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'Pending',
       name: 'Pending',
-      count: stats.pending,
+      count: strictlyPendingCount || stats.pending,
       icon: Clock,
       countColor: 'text-amber-600 dark:text-amber-400',
       color: 'from-amber-500 to-amber-600',
@@ -406,19 +435,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
       hoverBorder: 'hover:border-amber-400 dark:hover:border-amber-500 hover:shadow-amber-500/10',
     },
     {
-      id: 'Received',
-      name: 'Received',
-      count: stats.received,
-      icon: PackageCheck,
+      id: 'Partially Received',
+      name: 'Partially Received',
+      count: partiallyReceivedCount || stats.partiallyReceived || 0,
+      icon: Package,
       countColor: 'text-sky-600 dark:text-sky-400',
       color: 'from-sky-500 to-blue-600',
       bgColor: 'bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800/60',
       hoverBorder: 'hover:border-sky-400 dark:hover:border-sky-500 hover:shadow-sky-500/10',
     },
     {
-      id: 'Completed',
-      name: 'Completed',
-      count: stats.completed,
+      id: 'Received',
+      name: 'Received',
+      count: fullyReceivedCount || stats.received,
       icon: CheckCircle2,
       countColor: 'text-emerald-600 dark:text-emerald-400',
       color: 'from-emerald-500 to-emerald-600',
@@ -507,6 +536,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* Clickable Status Legend Component (New Workflow Guide) */}
+      <StatusLegend
+        pendingCount={strictlyPendingCount || stats.pending}
+        partiallyReceivedCount={partiallyReceivedCount || stats.partiallyReceived || 0}
+        receivedCount={fullyReceivedCount || stats.received}
+        totalCount={stats.total || edfs.length}
+        onSelectStatus={(status) => onFilterNavigate('status', status)}
+      />
+
       {/* Primary KPI Header: Total EDFs & Status Breakdown */}
       <div className="w-full min-w-0">
         <div className="flex items-center justify-between mb-3">
@@ -584,19 +622,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 endY: 12,
                 badge: 'Queue flow',
               },
-              Received: {
+              'Partially Received': {
                 color: '#0284c7',
-                gradientId: 'trend-received',
+                gradientId: 'trend-partially-received',
                 path: 'M0,20 Q30,18 55,12 T80,8 T100,5',
                 endY: 5,
-                badge: '+18% intake',
+                badge: 'In-progress',
               },
-              Completed: {
+              Received: {
                 color: '#10b981',
-                gradientId: 'trend-completed',
+                gradientId: 'trend-received',
                 path: 'M0,22 Q35,20 60,12 T85,6 T100,3',
                 endY: 3,
-                badge: '96% rate',
+                badge: 'All items in',
               },
               Overdue: {
                 color: '#e11d48',
@@ -699,7 +737,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       </span>
                     ) : (
                       <span className="text-slate-400 font-semibold group-hover:text-slate-600 dark:group-hover:text-slate-200">
-                        {Math.round((card.count / total) * 100)}% of total
+                        {Math.round(((card.count || 0) / total) * 100)}% of total
                       </span>
                     )}
                     <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform text-slate-400" />
@@ -995,17 +1033,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
               title={`Pending: ${stats.pending}`}
             />
             <div
-              className="h-full bg-blue-500 transition-all"
+              className="h-full bg-sky-500 transition-all"
+              style={{ width: `${((stats.partiallyReceived || 0) / total) * 100}%` }}
+              title={`Partially Received: ${stats.partiallyReceived || 0}`}
+            />
+            <div
+              className="h-full bg-emerald-500 transition-all"
               style={{ width: `${(stats.received / total) * 100}%` }}
               title={`Received: ${stats.received}`}
             />
             <div
-              className="h-full bg-emerald-500 transition-all"
-              style={{ width: `${(stats.completed / total) * 100}%` }}
-              title={`Completed: ${stats.completed}`}
-            />
-            <div
-              className="h-full bg-red-500 transition-all"
+              className="h-full bg-rose-500 transition-all"
               style={{ width: `${(stats.overdue / total) * 100}%` }}
               title={`Overdue: ${stats.overdue}`}
             />

@@ -285,13 +285,27 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
         return;
       }
 
-      // Helper to find column value by multiple possible header names
+      // Helper to find column value by multiple possible header names (exact matches prioritized)
       const findValue = (row: Record<string, any>, candidateKeys: string[]): string => {
+        // Pass 1: exact matches
         for (const cand of candidateKeys) {
+          const normCand = cand.toLowerCase().replace(/[^a-z0-9]/g, '');
           for (const key of Object.keys(row)) {
             const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const normCand = cand.toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (normKey === normCand || normKey.includes(normCand)) {
+            if (normKey === normCand) {
+              const val = row[key];
+              if (val !== undefined && val !== null && String(val).trim() !== '') {
+                return String(val).trim();
+              }
+            }
+          }
+        }
+        // Pass 2: substring matches
+        for (const cand of candidateKeys) {
+          const normCand = cand.toLowerCase().replace(/[^a-z0-9]/g, '');
+          for (const key of Object.keys(row)) {
+            const normKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (normKey.includes(normCand)) {
               const val = row[key];
               if (val !== undefined && val !== null && String(val).trim() !== '') {
                 return String(val).trim();
@@ -323,9 +337,9 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
         const issueDateRaw = findValue(row, ['issuedate', 'requestdate', 'issued', 'requested', 'date']);
         const requiredDateRaw = findValue(row, ['requireddate', 'duedate', 'deadline', 'deliverydate', 'required']);
         const statusRaw = findValue(row, ['status', 'edfstatus', 'state']);
-        const progressRaw = findValue(row, ['receivingprogress', 'progress', 'itemstatus', 'itemreceivingstatus', 'receivingstatus']);
+        const progressRaw = findValue(row, ['itemreceivingstatus', 'receivingstatus', 'itemstatus', 'receivingprogress', 'progress']);
         const remarks = findValue(row, ['remarks', 'notes', 'comments', 'remark', 'note']);
-        const materialSummary = findValue(row, ['materialsummary', 'materialdetails', 'materiallist', 'itemdescription', 'item', 'material', 'description', 'materials']);
+        const materialSummary = findValue(row, ['itemdescription', 'materialdetails', 'materialsummary', 'materiallist', 'item', 'material', 'description', 'materials']);
         const quantityRaw = findValue(row, ['quantity', 'qty', 'count', 'amount']);
         const unitRaw = findValue(row, ['unit', 'uom', 'measurement']);
 
@@ -359,6 +373,15 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
 
         const edfRecord = edfMap.get(rawEdfNum)!;
 
+        // Check if item was received
+        const normProg = progressRaw.toLowerCase();
+        const isItemReceived =
+          (normProg.includes('received') && !normProg.startsWith('0/')) ||
+          normProg === 'yes' ||
+          normProg === 'done' ||
+          normProg === 'complete' ||
+          normProg === 'completed';
+
         // Check if materialSummary has multiple items in "Item Description (10 pcs), Item 2 (5 unit)" format
         const itemMatches = [...materialSummary.matchAll(/(.+?)\s*\((\d+(?:\.\d+)?)\s*([a-zA-Z]+)\)/g)];
 
@@ -367,7 +390,6 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
             const itemDesc = m[1].replace(/^[,\s]+/, '').trim();
             const itemQty = parseFloat(m[2]) || 1;
             const itemUnit = m[3].trim();
-            const isItemReceived = progressRaw.toLowerCase().includes('received') && !progressRaw.startsWith('0/');
 
             edfRecord.items.push({
               itemDescription: itemDesc,
@@ -379,7 +401,6 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
         } else if (materialSummary) {
           const qty = parseFloat(quantityRaw) || 1;
           const unit = unitRaw || 'pcs';
-          const isItemReceived = progressRaw.toLowerCase().includes('received') && !progressRaw.startsWith('0/');
 
           edfRecord.items.push({
             itemDescription: materialSummary,

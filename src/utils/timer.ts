@@ -48,19 +48,6 @@ export function calculateLiveTimer(requiredDateStr: string | Date, status?: stri
     };
   }
 
-  if (status === 'Completed') {
-    return {
-      isOverdue: false,
-      color: 'green',
-      formattedText: 'Completed (Fulfilled)',
-      days: 0,
-      hours: 0,
-      minutes: 0,
-      seconds: 0,
-      isTodayOrTomorrow: false,
-    };
-  }
-
   const now = new Date();
   const target = parseRequiredDateTarget(requiredDateStr);
 
@@ -124,8 +111,8 @@ export function useLiveTimer(requiredDateStr: string | Date, status?: string): T
   const [timer, setTimer] = useState<TimerResult>(() => calculateLiveTimer(requiredDateStr, status));
 
   useEffect(() => {
-    // If status is Received or Completed, timer is stopped
-    if (status === 'Received' || status === 'Completed') {
+    // If status is Received, timer is stopped
+    if (status === 'Received') {
       setTimer(calculateLiveTimer(requiredDateStr, status));
       return;
     }

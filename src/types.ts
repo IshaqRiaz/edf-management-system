@@ -23,7 +23,7 @@ export interface Requester {
   createdAt?: string;
 }
 
-export type EDFStatus = 'Pending' | 'Partially Received' | 'Received' | 'Completed' | 'Overdue';
+export type EDFStatus = 'Pending' | 'Partially Received' | 'Received' | 'Overdue';
 export type EDFPriority = 'Low' | 'Medium' | 'High';
 
 export interface EDFItem {
@@ -108,9 +108,9 @@ export interface DashboardStats {
   electrical: number;
   general: number;
   pending: number;
-  partiallyReceived?: number;
+  partiallyReceived: number;
   received: number;
-  completed: number;
+  completed?: number;
   overdue: number;
   recentActivity: ActivityLog[];
   creationHistory7Days?: CreationDayStat[];

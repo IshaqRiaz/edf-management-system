@@ -18,7 +18,7 @@ interface OverdueSectionProps {
   onBackToDashboard: () => void;
   onViewDetails: (edf: EDF) => void;
   onEdit: (edf: EDF) => void;
-  onMarkStatus: (id: number, status: 'Received' | 'Completed' | 'Pending') => void;
+  onMarkStatus: (id: number, status: 'Received' | 'Partially Received' | 'Pending') => void;
   isAdmin: boolean;
 }
 
@@ -30,9 +30,9 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
   onMarkStatus,
   isAdmin,
 }) => {
-  // Filter only overdue EDFs (Received and Completed are NOT overdue)
+  // Filter only overdue EDFs (Received demands are NOT overdue)
   const overdueEdfs = edfs.filter((item) => {
-    if (item.status === 'Received' || item.status === 'Completed') return false;
+    if (item.status === 'Received') return false;
     if (item.status === 'Overdue' || item.isOverdue) return true;
     const isPast = new Date(item.requiredDate).getTime() < Date.now();
     return isPast;
@@ -212,24 +212,13 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
                         </button>
 
                         {isAdmin && (
-                          <>
-                            <button
-                              onClick={() => onEdit(item)}
-                              className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white bg-white/70 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-xs cursor-pointer"
-                              title="Edit EDF"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-
-                            <button
-                              onClick={() => onMarkStatus(item.id, 'Completed')}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-sm transition-all cursor-pointer"
-                              title="Mark Completed"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Completed</span>
-                            </button>
-                          </>
+                          <button
+                            onClick={() => onEdit(item)}
+                            className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white bg-white/70 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-xs cursor-pointer"
+                            title="Edit EDF"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
                     </td>
