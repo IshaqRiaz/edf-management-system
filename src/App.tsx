@@ -343,18 +343,19 @@ const MainLayout: React.FC = () => {
     action: 'mark-received' | 'mark-completed' | 'delete'
   ) => {
     try {
+      const apiAction = action === 'mark-completed' ? 'mark-received' : action;
       const res = await fetch('/api/edfs/bulk-action', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ids, action }),
+        body: JSON.stringify({ ids, action: apiAction }),
       });
 
       if (res.ok) {
         await refreshAllData();
-        showToast(`Bulk action (${action}) completed successfully`, 'success');
+        showToast(`Bulk action (${action === 'delete' ? 'Delete' : 'Mark Received'}) executed successfully`, 'success');
       } else {
         const data = await res.json();
         showToast(data.error || 'Bulk action failed', 'error');

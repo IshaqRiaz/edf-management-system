@@ -49,7 +49,7 @@ export const Reports: React.FC<ReportsProps> = ({
   // Status & Delivery Audit Logs State
   const [statusLogs, setStatusLogs] = useState<EDFStatusHistory[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-  const [logActionFilter, setLogActionFilter] = useState<'all' | 'received' | 'completed' | 'pending'>('all');
+  const [logActionFilter, setLogActionFilter] = useState<'all' | 'received' | 'partially_received' | 'pending'>('all');
   const [logRoleFilter, setLogRoleFilter] = useState<'all' | 'admin' | 'visitor'>('all');
   const [logSearch, setLogSearch] = useState('');
 
@@ -108,7 +108,14 @@ export const Reports: React.FC<ReportsProps> = ({
     return statusLogs.filter((log) => {
       // 1. Action filter
       if (logActionFilter !== 'all') {
-        if (String(log.toStatus).toLowerCase() !== logActionFilter.toLowerCase()) {
+        const toLower = String(log.toStatus).toLowerCase();
+        if (logActionFilter === 'received') {
+          if (toLower !== 'received' && toLower !== 'completed') return false;
+        } else if (logActionFilter === 'partially_received') {
+          if (toLower !== 'partially received') return false;
+        } else if (logActionFilter === 'pending') {
+          if (toLower !== 'pending') return false;
+        } else {
           return false;
         }
       }
@@ -621,7 +628,7 @@ export const Reports: React.FC<ReportsProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: RECEIPT & COMPLETION AUDIT TRAIL LOGS (WHO MARKED RECEIVED/COMPLETED) */}
+      {/* TAB 2: RECEIPT & STATUS AUDIT TRAIL LOGS                                */}
       {/* ========================================================================= */}
       {activeReportTab === 'audit_logs' && (
         <div className="space-y-6">
@@ -646,21 +653,21 @@ export const Reports: React.FC<ReportsProps> = ({
                     onClick={() => setLogActionFilter('received')}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                       logActionFilter === 'received'
-                        ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
-                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    Received Only
-                  </button>
-                  <button
-                    onClick={() => setLogActionFilter('completed')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      logActionFilter === 'completed'
                         ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-300 shadow-xs'
                         : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    Completed Only
+                    Received
+                  </button>
+                  <button
+                    onClick={() => setLogActionFilter('partially_received')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      logActionFilter === 'partially_received'
+                        ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Partially Received
                   </button>
                 </div>
               </div>
@@ -701,7 +708,7 @@ export const Reports: React.FC<ReportsProps> = ({
                   EDF Receipt & Status Audit Trail
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  Permanent record of which Admin or Visitor marked demand forms as Received or Completed
+                  Permanent record of which Admin or Visitor marked demand forms as Received or Partially Received
                 </p>
               </div>
 
@@ -754,8 +761,8 @@ export const Reports: React.FC<ReportsProps> = ({
                     </tr>
                   ) : (
                     filteredLogs.map((log) => {
-                      const isReceived = String(log.toStatus).toLowerCase() === 'received';
-                      const isCompleted = String(log.toStatus).toLowerCase() === 'completed';
+                      const isReceived = String(log.toStatus).toLowerCase() === 'received' || String(log.toStatus).toLowerCase() === 'completed';
+                      const isPartiallyReceived = String(log.toStatus).toLowerCase() === 'partially received';
                       const isVisitor = String(log.changedBy || '').toLowerCase().includes('visitor');
                       const isAdmin = String(log.changedBy || '').toLowerCase().includes('admin');
 
@@ -774,18 +781,18 @@ export const Reports: React.FC<ReportsProps> = ({
                           {/* Action Badge */}
                           <td className="py-2.5 px-4 whitespace-nowrap">
                             {isReceived && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
-                                <PackageCheck className="w-3.5 h-3.5" />
-                                <span>Marked Received</span>
-                              </span>
-                            )}
-                            {isCompleted && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Completed</span>
+                                <span>Received</span>
                               </span>
                             )}
-                            {!isReceived && !isCompleted && (
+                            {isPartiallyReceived && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                                <PackageCheck className="w-3.5 h-3.5" />
+                                <span>Partially Received</span>
+                              </span>
+                            )}
+                            {!isReceived && !isPartiallyReceived && (
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300">
                                 <Clock className="w-3.5 h-3.5" />
                                 <span>{log.toStatus}</span>
@@ -817,8 +824,8 @@ export const Reports: React.FC<ReportsProps> = ({
                             <div className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-600 dark:text-slate-300">
                               <span className="text-slate-400">{log.fromStatus || 'None'}</span>
                               <ArrowRight className="w-3 h-3 text-slate-400" />
-                              <strong className={isReceived ? 'text-sky-600' : isCompleted ? 'text-emerald-600' : 'text-slate-700'}>
-                                {log.toStatus}
+                              <strong className={isReceived ? 'text-emerald-600' : isPartiallyReceived ? 'text-sky-600' : 'text-slate-700'}>
+                                {log.toStatus === 'Completed' ? 'Received' : log.toStatus}
                               </strong>
                             </div>
                           </td>

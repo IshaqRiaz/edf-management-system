@@ -85,7 +85,7 @@ export const StatusLegend: React.FC<StatusLegendProps> = ({
       rule: 'All (N/N) Items Received',
       definition: 'All items received & verified (100%)',
       description:
-        'Demand fulfilled and completed. Every item in the request has arrived. The countdown timer stops automatically.',
+        'Demand fully fulfilled and delivered. Every item in the request has arrived. The countdown timer stops automatically.',
       count: receivedCount,
       percent: Math.round((receivedCount / safeTotal) * 100),
       icon: PackageCheck,
@@ -98,7 +98,7 @@ export const StatusLegend: React.FC<StatusLegendProps> = ({
         'border-emerald-200/80 dark:border-emerald-900/40 hover:border-emerald-400 dark:hover:border-emerald-500 hover:shadow-emerald-500/10',
       accentText: 'text-emerald-600 dark:text-emerald-400',
       example: 'e.g. 8/8 items received',
-      timerBehavior: 'Timer stopped & completed',
+      timerBehavior: 'Timer stopped (Fully Received)',
     },
   ];
 

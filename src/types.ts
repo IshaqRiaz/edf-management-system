@@ -110,7 +110,6 @@ export interface DashboardStats {
   pending: number;
   partiallyReceived: number;
   received: number;
-  completed?: number;
   overdue: number;
   recentActivity: ActivityLog[];
   creationHistory7Days?: CreationDayStat[];

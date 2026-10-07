@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { DashboardStats, EDF } from '../types.ts';
 import { useTheme, AccentColor } from '../context/ThemeContext.tsx';
 import { StatusLegend } from './StatusLegend.tsx';
+import { TimerBadge } from './TimerBadge.tsx';
 import {
   ResponsiveContainer,
   LineChart,
@@ -108,7 +109,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     const act = action.toLowerCase();
     if (
       act.includes('marked as') ||
-      act.includes('completed') ||
+      act.includes('partially') ||
       act.includes('pending') ||
       act.includes('received') ||
       act.includes('status')
@@ -189,6 +190,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
         e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
       return recCount === 0 && e.status !== 'Partially Received';
     }).length;
+  }, [edfs]);
+
+  // Item progress for partially received EDFs (for Status Matrix card)
+  const partiallyReceivedItemProgress = useMemo(() => {
+    let recItems = 0;
+    let totItems = 0;
+    for (const e of edfs) {
+      const rawItems = e.items || [];
+      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+      const recCount =
+        e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+      if (
+        e.status === 'Partially Received' ||
+        (recCount > 0 && recCount < totalCount)
+      ) {
+        recItems += recCount;
+        totItems += totalCount;
+      }
+    }
+    return { recItems, totItems };
   }, [edfs]);
 
   // Frequency of EDF creation over the last 7 days
@@ -561,7 +582,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <span className="text-[11px] text-slate-400 shrink-0">Live operational status</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 w-full min-w-0">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5 w-full min-w-0">
           {/* Total EDFs Card */}
           <button
             onClick={() => onFilterNavigate('all')}
@@ -608,7 +629,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </button>
 
-          {/* Pending, Received, Completed, Overdue */}
+          {/* Pending, Partially Received, Received, Overdue */}
           {statusCards.map((card) => {
             const Icon = card.icon;
             const isOverdueAlert = card.isOverdue && card.count > 0;
@@ -726,9 +747,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
 
                   <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">
-                    {card.id === 'Pending' && partiallyReceivedCount > 0 ? (
+                    {card.id === 'Pending' ? (
                       <span className="text-amber-700 dark:text-amber-300 font-extrabold text-[10px]">
-                        {partiallyReceivedCount} Partial Intake
+                        {card.count} EDFs • 0 items received
+                      </span>
+                    ) : card.id === 'Partially Received' ? (
+                      <span className="text-sky-700 dark:text-sky-300 font-extrabold text-[10px]">
+                        {card.count} EDFs • {partiallyReceivedItemProgress.recItems}/{partiallyReceivedItemProgress.totItems || 1} items received
+                      </span>
+                    ) : card.id === 'Received' ? (
+                      <span className="text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px]">
+                        {card.count} EDFs • All items received
                       </span>
                     ) : isOverdueAlert ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-rose-600 text-white font-black text-[10px] animate-pulse">
@@ -782,7 +811,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {edfs
               .filter(
                 (e) =>
@@ -801,32 +830,77 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 return (
                   <div
                     key={item.id}
-                    onClick={() => onFilterNavigate('status', 'Pending')}
-                    className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-sky-100 dark:border-sky-900/60 shadow-2xs hover:border-sky-300 dark:hover:border-sky-700 transition-colors cursor-pointer"
+                    onClick={() => onFilterNavigate('status', 'Partially Received')}
+                    className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-sky-100 dark:border-sky-900/60 shadow-xs hover:border-sky-300 dark:hover:border-sky-700 transition-all cursor-pointer flex flex-col justify-between space-y-2.5"
                   >
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="font-mono font-bold text-slate-900 dark:text-white">
-                        {item.edfNumber}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                        Pending
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1.5">
-                      <span className="text-sky-700 dark:text-sky-300 font-bold">
+                    {/* 1. EDF Number */}
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono font-black text-slate-900 dark:text-white truncate">
+                          {item.edfNumber}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                          {item.category}
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-300 dark:border-sky-800 shrink-0">
                         Partially Received
                       </span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">
-                        {receivedCount}/{totalCount} Items Received
-                      </span>
                     </div>
-                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-sky-500 rounded-full"
-                        style={{
-                          width: `${Math.round((receivedCount / Math.max(totalCount, 1)) * 100)}%`,
-                        }}
-                      />
+
+                    {/* 2. Remarks & Notes */}
+                    <div className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
+                      <span className="font-semibold text-slate-400 mr-1">Remarks:</span>
+                      {item.remarks ? (
+                        <span>{item.remarks}</span>
+                      ) : (
+                        <span className="italic text-slate-400">None provided</span>
+                      )}
+                    </div>
+
+                    {/* 3. Material Summary */}
+                    <div className="text-[11px] font-medium text-slate-800 dark:text-slate-200 truncate">
+                      <span className="font-semibold text-slate-400 mr-1">Materials:</span>
+                      {item.materialList} ({item.quantity} {item.unit})
+                    </div>
+
+                    {/* 4. Priority & 5. Live Timer */}
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-xs">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-slate-400 font-bold">Priority:</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            item.priority === 'High'
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                              : item.priority === 'Low'
+                              ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                          }`}
+                        >
+                          {item.priority || 'Medium'}
+                        </span>
+                      </div>
+                      <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
+                    </div>
+
+                    {/* 6. Remaining Details: Item Receiving Progress */}
+                    <div className="space-y-1 pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-sky-700 dark:text-sky-300">
+                          {receivedCount}/{totalCount} Items Received
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {Math.round((receivedCount / Math.max(totalCount, 1)) * 100)}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-sky-500 rounded-full transition-all"
+                          style={{
+                            width: `${Math.round((receivedCount / Math.max(totalCount, 1)) * 100)}%`,
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 );

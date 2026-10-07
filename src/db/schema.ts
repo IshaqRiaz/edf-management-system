@@ -29,7 +29,7 @@ export const edfs = pgTable('edfs', {
   materialList: text('material_list').notNull(),
   quantity: integer('quantity').notNull().default(1),
   unit: text('unit').notNull().default('pcs'),
-  status: text('status').notNull().default('Pending'), // 'Pending' | 'Received' | 'Completed' | 'Overdue'
+  status: text('status').notNull().default('Pending'), // 'Pending' | 'Partially Received' | 'Received' | 'Overdue'
   priority: text('priority').notNull().default('Medium'), // 'Low' | 'Medium' | 'High'
   remarks: text('remarks'),
   createdBy: text('created_by'),
@@ -63,7 +63,7 @@ export const edfStatusHistory = pgTable('edf_status_history', {
   edfId: integer('edf_id').references(() => edfs.id, { onDelete: 'cascade' }).notNull(),
   edfNumber: text('edf_number').notNull(),
   fromStatus: text('from_status'), // previous status or null for initial creation
-  toStatus: text('to_status').notNull(), // 'Pending' | 'Received' | 'Completed' | 'Overdue'
+  toStatus: text('to_status').notNull(), // 'Pending' | 'Partially Received' | 'Received' | 'Overdue'
   changedBy: text('changed_by'), // user name or phone or 'System'
   notes: text('notes'), // optional description or note
   createdAt: timestamp('created_at').defaultNow(),

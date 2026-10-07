@@ -180,7 +180,7 @@ export async function seedDatabase() {
         materialList: 'Panasonic KX-T7730 Display Phone, 100m 2-Pair Drop Wire',
         quantity: 3,
         unit: 'units',
-        status: 'Completed',
+        status: 'Received',
         priority: 'Low',
         remarks: 'Accounts department extensions reconfigured and tested OK.',
         createdBy: '03001234567',

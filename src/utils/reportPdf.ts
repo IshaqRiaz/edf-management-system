@@ -215,10 +215,10 @@ export function generateReportPdf({
         const val = String(data.cell.raw).toLowerCase();
         if (val.includes('overdue')) {
           data.cell.styles.textColor = [225, 29, 72];
-        } else if (val.includes('completed')) {
-          data.cell.styles.textColor = [5, 150, 105];
-        } else if (val.includes('received')) {
+        } else if (val.includes('partially')) {
           data.cell.styles.textColor = [2, 132, 199];
+        } else if (val.includes('received') || val.includes('completed')) {
+          data.cell.styles.textColor = [5, 150, 105];
         } else if (val.includes('pending')) {
           data.cell.styles.textColor = [217, 119, 6];
         }
@@ -318,16 +318,16 @@ export function generateReceiptAuditPdf({
   currentY += 10;
 
   // Summary counts
-  const receivedLogs = logs.filter((l) => String(l.toStatus).toLowerCase() === 'received');
-  const completedLogs = logs.filter((l) => String(l.toStatus).toLowerCase() === 'completed');
+  const receivedLogs = logs.filter((l) => String(l.toStatus).toLowerCase() === 'received' || String(l.toStatus).toLowerCase() === 'completed');
+  const partiallyReceivedLogs = logs.filter((l) => String(l.toStatus).toLowerCase() === 'partially received');
 
   const boxWidth = (pageWidth - margin * 2 - 8) / 3;
   const boxHeight = 15;
 
   const summary = [
     { title: 'Total Audit Entries', count: logs.length, color: [15, 23, 42] },
-    { title: 'Marked as Received', count: receivedLogs.length, color: [2, 132, 199] },
-    { title: 'Marked as Completed', count: completedLogs.length, color: [5, 150, 105] },
+    { title: 'Marked as Received', count: receivedLogs.length, color: [5, 150, 105] },
+    { title: 'Partially Received', count: partiallyReceivedLogs.length, color: [2, 132, 199] },
   ];
 
   summary.forEach((item, idx) => {
@@ -392,10 +392,10 @@ export function generateReceiptAuditPdf({
     didParseCell: (data) => {
       if (data.column.index === 2) {
         const val = String(data.cell.raw).toLowerCase();
-        if (val === 'received') {
-          data.cell.styles.textColor = [2, 132, 199];
-        } else if (val === 'completed') {
+        if (val === 'received' || val === 'completed') {
           data.cell.styles.textColor = [5, 150, 105];
+        } else if (val === 'partially received') {
+          data.cell.styles.textColor = [2, 132, 199];
         } else if (val === 'overdue') {
           data.cell.styles.textColor = [225, 29, 72];
         }

@@ -348,7 +348,8 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
 
         const isOverdue = new Date(parsedRequiredDate).getTime() < Date.now();
         let calculatedStatus = statusRaw || (isOverdue ? 'Overdue' : 'Pending');
-        if (!['Pending', 'Received', 'Completed', 'Overdue'].includes(calculatedStatus)) {
+        if (calculatedStatus === 'Completed') calculatedStatus = 'Received';
+        if (!['Pending', 'Partially Received', 'Received', 'Overdue'].includes(calculatedStatus)) {
           calculatedStatus = isOverdue ? 'Overdue' : 'Pending';
         }
 

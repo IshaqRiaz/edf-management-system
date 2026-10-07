@@ -24,6 +24,7 @@ import {
   ExternalLink,
   CheckCircle2,
   PackageCheck,
+  Package,
   History,
   CheckCheck,
   Trash2,
@@ -172,7 +173,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             notifTitle = `${edf.edfNumber} Partially Received`;
             notifMessage = `${receivedCount} of ${totalCount} items have been received.`;
           } else if (edf.status === 'Received') {
-            notifTitle = `${edf.edfNumber} Fully Received`;
+            notifTitle = `${edf.edfNumber} Received`;
             notifMessage = `All ${totalCount} items have been received.`;
           }
 
@@ -332,10 +333,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'Completed':
-        return <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
       case 'Received':
-        return <PackageCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+        return <PackageCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
+      case 'Partially Received':
+        return <Package className="w-4 h-4 text-sky-600 dark:text-sky-400" />;
       case 'Overdue':
         return <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />;
       case 'Pending':

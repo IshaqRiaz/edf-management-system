@@ -102,11 +102,16 @@ export async function safeMigrateDatabase(): Promise<boolean> {
       ALTER TABLE edf_items ADD COLUMN IF NOT EXISTS received_by TEXT;
     `);
 
-    // Backward compatibility: If parent EDF is already Received or Completed, set its items to Received
+    // Safely migrate any historical 'Completed' statuses to 'Received'
+    await client.query(`
+      UPDATE edfs SET status = 'Received' WHERE status = 'Completed';
+    `);
+
+    // If parent EDF is already Received, set its items to Received
     await client.query(`
       UPDATE edf_items 
       SET status = 'Received', received_at = CURRENT_TIMESTAMP, received_by = 'System' 
-      WHERE status = 'Pending' AND edf_id IN (SELECT id FROM edfs WHERE status IN ('Received', 'Completed'));
+      WHERE status = 'Pending' AND edf_id IN (SELECT id FROM edfs WHERE status = 'Received');
     `);
 
     // 5. Activity logs table

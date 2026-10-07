@@ -78,7 +78,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
   const [datePreset, setDatePreset] = useState<'all' | 'today' | '7d' | '30d' | 'month'>('all');
 
   // Filter states
-  const [actionFilter, setActionFilter] = useState<'all' | 'received' | 'completed' | 'pending'>('all');
+  const [actionFilter, setActionFilter] = useState<'all' | 'received' | 'partially_received' | 'pending'>('all');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'visitor'>('all');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
@@ -225,20 +225,20 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
   const dateRangeSummary = useMemo<{
     totalActions: number;
     receivedCount: number;
-    completedCount: number;
+    partiallyReceivedCount: number;
     mostActiveUser: MostActiveUser | null;
     dateLabel: string;
     uniqueUsersCount: number;
   }>(() => {
     const totalActions = dateRangeFilteredLogs.length;
     let receivedCount = 0;
-    let completedCount = 0;
+    let partiallyReceivedCount = 0;
     const actorCounts: Record<string, { count: number; name: string; role: string; phone?: string }> = {};
 
     dateRangeFilteredLogs.forEach((log) => {
       const statusLower = String(log.toStatus).toLowerCase();
-      if (statusLower === 'received') receivedCount++;
-      if (statusLower === 'completed') completedCount++;
+      if (statusLower === 'received' || statusLower === 'completed') receivedCount++;
+      if (statusLower === 'partially received') partiallyReceivedCount++;
 
       const actorRaw = (log.changedBy || 'System').trim();
       if (!actorCounts[actorRaw]) {
@@ -290,7 +290,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
     return {
       totalActions,
       receivedCount,
-      completedCount,
+      partiallyReceivedCount,
       mostActiveUser,
       dateLabel,
       uniqueUsersCount: Object.keys(actorCounts).length,
@@ -303,9 +303,13 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
     // Action filter
     if (actionFilter !== 'all') {
-      result = result.filter(
-        (log) => String(log.toStatus).toLowerCase() === actionFilter.toLowerCase()
-      );
+      result = result.filter((log) => {
+        const toLower = String(log.toStatus).toLowerCase();
+        if (actionFilter === 'received') return toLower === 'received' || toLower === 'completed';
+        if (actionFilter === 'partially_received') return toLower === 'partially received';
+        if (actionFilter === 'pending') return toLower === 'pending';
+        return false;
+      });
     }
 
     // Role filter (checks if changedBy contains 'admin' or 'visitor')
@@ -318,7 +322,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
       });
     }
 
-    // Search query across Username, explicit action keywords ('CREATED', 'UPDATED', 'RECEIVED', 'COMPLETED', etc.), EDF number, notes, requester, category
+    // Search query across Username, explicit action keywords ('CREATED', 'UPDATED', 'RECEIVED', 'PARTIALLY RECEIVED', etc.), EDF number, notes, requester, category
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       result = result.filter((log) => {
@@ -335,16 +339,16 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
         // Categorize semantic action keywords
         const isCreatedAction = !log.fromStatus || notes.includes('creat') || notes.includes('initial');
         const isUpdatedAction = Boolean(log.fromStatus) || notes.includes('updat') || notes.includes('chang');
-        const isReceivedAction = toStatus === 'received';
-        const isCompletedAction = toStatus === 'completed';
+        const isReceivedAction = toStatus === 'received' || toStatus === 'completed';
+        const isPartiallyReceivedAction = toStatus === 'partially received';
         const isOverdueAction = toStatus === 'overdue';
         const isPendingAction = toStatus === 'pending';
 
         const actionTextKeywords = [
           isCreatedAction ? 'created create creation initial' : '',
           isUpdatedAction ? 'updated update modification edit status-change changed' : '',
-          isReceivedAction ? 'received receive marked-received delivery' : '',
-          isCompletedAction ? 'completed complete finish done' : '',
+          isReceivedAction ? 'received receive marked-received delivery fulfilled' : '',
+          isPartiallyReceivedAction ? 'partially received partial intake checklist' : '',
           isOverdueAction ? 'overdue delayed late' : '',
           isPendingAction ? 'pending in-progress waiting' : '',
           toStatus,
@@ -593,8 +597,8 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                 {dateRangeSummary.receivedCount} Received
               </span>
               <span>•</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                {dateRangeSummary.completedCount} Completed
+              <span className="text-indigo-600 dark:text-indigo-400 font-bold">
+                {dateRangeSummary.partiallyReceivedCount} Partially Received
               </span>
             </div>
           </div>
@@ -702,10 +706,10 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
               <span>Verified Status History</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-              EDF Receipt & Completion Audit Log
+              EDF Receipt & Status Audit Log
             </h2>
             <p className="text-rose-100 text-xs sm:text-sm mt-0.5 max-w-2xl font-medium">
-              Chronological tracking of visitor and admin actions marking demand forms as Received or Completed, with verified timestamps and credentials.
+              Chronological tracking of visitor and admin actions marking demand forms as Received or Partially Received, with verified timestamps and credentials.
             </p>
           </div>
         </div>
@@ -793,8 +797,8 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
             {[
               { label: 'CREATED', keyword: 'created', badge: 'bg-rose-500' },
               { label: 'UPDATED', keyword: 'updated', badge: 'bg-amber-500' },
-              { label: 'RECEIVED', keyword: 'received', badge: 'bg-sky-500' },
-              { label: 'COMPLETED', keyword: 'completed', badge: 'bg-emerald-500' },
+              { label: 'RECEIVED', keyword: 'received', badge: 'bg-emerald-500' },
+              { label: 'PARTIAL', keyword: 'partially', badge: 'bg-sky-500' },
               { label: 'PENDING', keyword: 'pending', badge: 'bg-slate-500' },
               { label: 'ADMIN USER', keyword: 'admin', badge: 'bg-rose-600' },
               { label: 'VISITOR USER', keyword: 'visitor', badge: 'bg-indigo-600' },
@@ -856,8 +860,8 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                 className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
               >
                 <option value="all">All Actions</option>
-                <option value="received">Received Only</option>
-                <option value="completed">Completed Only</option>
+                <option value="received">Received</option>
+                <option value="partially_received">Partially Received</option>
                 <option value="pending">Pending Only</option>
               </select>
             </div>
@@ -1006,8 +1010,8 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                 </tr>
               ) : (
                 displayedLogs.map((log) => {
-                  const isReceived = String(log.toStatus).toLowerCase() === 'received';
-                  const isCompleted = String(log.toStatus).toLowerCase() === 'completed';
+                  const isReceived = String(log.toStatus).toLowerCase() === 'received' || String(log.toStatus).toLowerCase() === 'completed';
+                  const isPartiallyReceived = String(log.toStatus).toLowerCase() === 'partially received';
                   const isVisitor = String(log.changedBy || '').toLowerCase().includes('visitor');
                   const isAdminActor = String(log.changedBy || '').toLowerCase().includes('admin');
                   const isExpanded = log.id !== undefined && expandedRowIds.has(log.id);
@@ -1085,30 +1089,30 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                         {/* Action Event Badge with Explicit Action Keywords */}
                         <td className="py-3 px-4 whitespace-nowrap">
                           {isReceived && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shadow-2xs">
-                              <PackageCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-2xs">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                               <span>Received</span>
                             </span>
                           )}
-                          {isCompleted && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shadow-2xs">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Completed</span>
+                          {isPartiallyReceived && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shadow-2xs">
+                              <PackageCheck className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                              <span>Partially Received</span>
                             </span>
                           )}
-                          {!isReceived && !isCompleted && (!log.fromStatus || (log.notes && log.notes.toLowerCase().includes('creat'))) && (
+                          {!isReceived && !isPartiallyReceived && (!log.fromStatus || (log.notes && log.notes.toLowerCase().includes('creat'))) && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-900 shadow-2xs">
                               <Sparkles className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                               <span>Created</span>
                             </span>
                           )}
-                          {!isReceived && !isCompleted && Boolean(log.fromStatus) && (
+                          {!isReceived && !isPartiallyReceived && Boolean(log.fromStatus) && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200 dark:border-amber-900 shadow-2xs">
                               <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                               <span>Updated ({log.toStatus})</span>
                             </span>
                           )}
-                          {!isReceived && !isCompleted && log.fromStatus === undefined && !(log.notes && log.notes.toLowerCase().includes('creat')) && (
+                          {!isReceived && !isPartiallyReceived && log.fromStatus === undefined && !(log.notes && log.notes.toLowerCase().includes('creat')) && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                               <Clock className="w-3.5 h-3.5 text-slate-500" />
                               <span>{log.toStatus}</span>
@@ -1140,8 +1144,8 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                           <div className="inline-flex items-center gap-1 text-[11px] font-mono text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950/50 px-2 py-0.5 rounded-lg border border-slate-100 dark:border-slate-800">
                             <span className="text-slate-400">{log.fromStatus || 'Created'}</span>
                             <ArrowRight className="w-3 h-3 text-slate-400" />
-                            <strong className={isReceived ? 'text-sky-600 dark:text-sky-400' : isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}>
-                              {log.toStatus}
+                            <strong className={isReceived ? 'text-emerald-600 dark:text-emerald-400' : isPartiallyReceived ? 'text-sky-600 dark:text-sky-400' : 'text-slate-700 dark:text-slate-200'}>
+                              {log.toStatus === 'Completed' ? 'Received' : log.toStatus}
                             </strong>
                           </div>
                         </td>
@@ -1335,12 +1339,12 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                                       <ArrowRight className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                                       <div className={`px-2 py-0.5 rounded font-mono text-xs font-black ${
                                         isReceived
-                                          ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800'
-                                          : isCompleted
                                           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                          : isPartiallyReceived
+                                          ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800'
                                           : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200'
                                       }`}>
-                                        {log.toStatus}
+                                        {log.toStatus === 'Completed' ? 'Received' : log.toStatus}
                                       </div>
                                     </div>
                                   </div>

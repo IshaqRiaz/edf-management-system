@@ -85,16 +85,17 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-rose-200 dark:border-rose-900 bg-rose-100/70 dark:bg-rose-950/80 text-rose-900 dark:text-rose-200 text-[11px] font-bold tracking-wider">
-                <th className="py-3.5 px-4">EDF Number</th>
-                <th className="py-3.5 px-4">Category</th>
-                <th className="py-3.5 px-4">Requester</th>
-                <th className="py-3.5 px-4">Issue Date</th>
-                <th className="py-3.5 px-4">Required Date</th>
-                <th className="py-3.5 px-4">Live Timer</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 min-w-[200px]">Material Summary</th>
-                <th className="py-3.5 px-4 min-w-[180px]">Remarks</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
+                <th className="py-3.5 px-3 min-w-[110px]">1. EDF Number</th>
+                <th className="py-3.5 px-3 min-w-[130px]">2. Remarks & Notes</th>
+                <th className="py-3.5 px-3 min-w-[170px]">3. Material Summary</th>
+                <th className="py-3.5 px-2 text-center w-20">4. Priority</th>
+                <th className="py-3.5 px-2 text-center w-28">5. Live Timer</th>
+                <th className="py-3.5 px-2 text-center w-28">6. Status</th>
+                <th className="py-3.5 px-3">Category</th>
+                <th className="py-3.5 px-3">Requester</th>
+                <th className="py-3.5 px-3">Issue Date</th>
+                <th className="py-3.5 px-3">Required Date</th>
+                <th className="py-3.5 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-rose-100 dark:divide-rose-900/60 text-xs">
@@ -124,70 +125,89 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
                     key={item.id}
                     className="bg-rose-50/80 dark:bg-rose-950/40 hover:bg-rose-100/70 dark:hover:bg-rose-900/50 transition-colors border-l-4 border-rose-500"
                   >
-                    {/* EDF Number */}
-                    <td className="py-3.5 px-4 font-mono font-bold text-rose-950 dark:text-rose-100 whitespace-nowrap">
+                    {/* 1. EDF Number */}
+                    <td className="py-3.5 px-3 font-mono font-bold text-rose-950 dark:text-rose-100 whitespace-nowrap">
                       <button
                         onClick={() => onViewDetails(item)}
-                        className="hover:underline hover:text-rose-600 flex items-center gap-1.5"
+                        className="hover:underline hover:text-rose-600 flex items-center gap-1.5 cursor-pointer"
                       >
                         <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                         <span>{item.edfNumber}</span>
                       </button>
                     </td>
 
-                    {/* Category */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="inline-block px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 border border-rose-200 dark:border-rose-800 shadow-xs">
-                        {item.category}
-                      </span>
+                    {/* 2. Remarks & Notes */}
+                    <td className="py-3.5 px-3 text-stone-600 dark:text-stone-400 max-w-[170px] truncate" title={item.remarks || undefined}>
+                      {item.remarks ? (
+                        <span>{item.remarks}</span>
+                      ) : (
+                        <span className="text-stone-400 italic">None</span>
+                      )}
                     </td>
 
-                    {/* Requester */}
-                    <td className="py-3.5 px-4 font-semibold text-stone-800 dark:text-stone-200 whitespace-nowrap">
-                      {item.requesterName}
-                    </td>
-
-                    {/* Issue Date */}
-                    <td className="py-3.5 px-4 text-stone-600 dark:text-stone-400 whitespace-nowrap font-medium">
-                      {new Date(item.issueDate).toLocaleDateString()}
-                    </td>
-
-                    {/* Required Date */}
-                    <td className="py-3.5 px-4 text-rose-900 dark:text-rose-200 font-bold whitespace-nowrap">
-                      {new Date(item.requiredDate).toLocaleDateString()}
-                    </td>
-
-                    {/* Live Timer */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <TimerBadge requiredDate={item.requiredDate} status={item.status} />
-                    </td>
-
-                    {/* Status */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <div className="flex flex-col items-start gap-1">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-sm shadow-rose-600/30">
-                          <AlertOctagon className="w-3 h-3" />
-                          <span>Overdue</span>
-                        </span>
-                        {isPartial && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-300">
-                            Partial: {receivedCount}/{totalCount}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Material Summary */}
-                    <td className="py-3.5 px-4 text-stone-800 dark:text-stone-200 font-medium">
+                    {/* 3. Material Summary */}
+                    <td className="py-3.5 px-3 text-stone-800 dark:text-stone-200 font-medium">
                       <span>{item.materialList}</span>
                       <span className="text-stone-500 font-mono text-[11px] ml-1.5">
                         ({item.quantity} {item.unit})
                       </span>
                     </td>
 
-                    {/* Remarks */}
-                    <td className="py-3.5 px-4 text-stone-600 dark:text-stone-400 italic">
-                      {item.remarks || <span className="text-stone-400">None</span>}
+                    {/* 4. Priority */}
+                    <td className="py-3.5 px-2 text-center whitespace-nowrap">
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          item.priority === 'High'
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                            : item.priority === 'Low'
+                            ? 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-900'
+                        }`}
+                      >
+                        {item.priority || 'Medium'}
+                      </span>
+                    </td>
+
+                    {/* 5. Live Timer */}
+                    <td className="py-3.5 px-2 text-center whitespace-nowrap">
+                      <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
+                    </td>
+
+                    {/* 6. Status */}
+                    <td className="py-3.5 px-2 text-center whitespace-nowrap">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-sm shadow-rose-600/30">
+                          <AlertOctagon className="w-3 h-3" />
+                          <span>Overdue</span>
+                        </span>
+                        {isPartial && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-300">
+                            {receivedCount}/{totalCount} Recv
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Category */}
+                    <td className="py-3.5 px-3 whitespace-nowrap">
+                      <span className="inline-block px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 border border-rose-200 dark:border-rose-800 shadow-xs">
+                        {item.category}
+                      </span>
+                    </td>
+
+                    {/* Requester */}
+                    <td className="py-3.5 px-3 font-semibold text-stone-800 dark:text-stone-200 whitespace-nowrap">
+                      {item.requesterName}
+                    </td>
+
+                    {/* Issue Date */}
+                    <td className="py-3.5 px-3 text-stone-600 dark:text-stone-400 whitespace-nowrap font-medium font-mono text-[11px]">
+                      {new Date(item.issueDate).toLocaleDateString()}
+                    </td>
+
+                    {/* Required Date */}
+                    <td className="py-3.5 px-3 text-rose-900 dark:text-rose-200 font-bold whitespace-nowrap font-mono text-[11px]">
+                      {new Date(item.requiredDate).toLocaleDateString()}
                     </td>
 
                     {/* Actions */}

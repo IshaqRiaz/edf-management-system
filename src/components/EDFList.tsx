@@ -224,6 +224,20 @@ export const EDFList: React.FC<EDFListProps> = ({
     }
   };
 
+  const getPriorityBadge = (priority?: string) => {
+    return (
+      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+        priority === 'High'
+          ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+          : priority === 'Low'
+          ? 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+          : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800'
+      }`}>
+        {priority || 'Medium'}
+      </span>
+    );
+  };
+
   // Compact receiving indicator (Requirement 5)
   const renderReceivingBadge = (item: EDF) => {
     const rawItems = item.items || [];
@@ -992,7 +1006,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                       : ''
                   }`}
                 >
-                  {/* Row 1: EDF Number + Status & Receiving Badges */}
+                  {/* 1. EDF Number + Status */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {isDueSoon && (
@@ -1024,12 +1038,12 @@ export const EDFList: React.FC<EDFListProps> = ({
                     </div>
                   </div>
 
-                  {/* Row 2: Remarks & Notes */}
+                  {/* 2. Remarks & Notes */}
                   <div className="bg-slate-50/70 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-800 text-xs">
                     <span className="text-[10px] font-bold text-slate-400 tracking-wider block mb-0.5">
                       2. Remarks & Notes
                     </span>
-                    <p className="text-slate-700 dark:text-slate-300">
+                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
                       {item.remarks ? (
                         <HighlightText text={item.remarks} query={search} />
                       ) : (
@@ -1038,7 +1052,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                     </p>
                   </div>
 
-                  {/* Row 3: Material Summary (Material -> Unit -> Quantity) */}
+                  {/* 3. Material Summary */}
                   <div className="bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
                     <span className="text-[10px] font-bold text-slate-400 tracking-wider block mb-0.5">
                       3. Material Summary
@@ -1057,8 +1071,25 @@ export const EDFList: React.FC<EDFListProps> = ({
                     </div>
                   </div>
 
-                  {/* Row 4: Remaining Details (Requester, Dates, Live Timer) */}
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                  {/* 4. Priority & 5. Live Timer in unified responsive row */}
+                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800 items-center">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-bold mb-1">
+                        4. Priority:
+                      </span>
+                      {getPriorityBadge(item.priority)}
+                    </div>
+
+                    <div className="flex flex-col items-end">
+                      <span className="text-[10px] text-slate-400 block font-bold mb-1">
+                        5. Live Timer:
+                      </span>
+                      <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
+                    </div>
+                  </div>
+
+                  {/* 6. Remaining EDF information (Requester, Dates) */}
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
                     <div>
                       <span className="text-[10px] text-slate-400 block font-semibold">Requester:</span>
                       <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
@@ -1071,11 +1102,6 @@ export const EDFList: React.FC<EDFListProps> = ({
                       <span className="font-semibold text-slate-800 dark:text-slate-200 block">
                         {new Date(item.requiredDate).toLocaleDateString()}
                       </span>
-                    </div>
-
-                    <div className="col-span-2 flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-[10px] text-slate-400 font-semibold">Live Countdown:</span>
-                      <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
                     </div>
                   </div>
 

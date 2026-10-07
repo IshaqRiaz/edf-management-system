@@ -300,8 +300,8 @@ export const CreateEditEDFModal: React.FC<CreateEditEDFModalProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 <option value="Pending">Pending</option>
+                <option value="Partially Received">Partially Received</option>
                 <option value="Received">Received</option>
-                <option value="Completed">Completed</option>
                 <option value="Overdue">Overdue</option>
               </select>
             </div>

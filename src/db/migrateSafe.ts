@@ -121,6 +121,9 @@ export async function runSafeDatabaseMigration(): Promise<void> {
       ALTER TABLE edf_status_history ADD COLUMN IF NOT EXISTS changed_by TEXT;
       ALTER TABLE edf_status_history ADD COLUMN IF NOT EXISTS notes TEXT;
       ALTER TABLE edf_status_history ADD COLUMN IF NOT EXISTS from_status TEXT;
+
+      -- Safely migrate any historical 'Completed' statuses to 'Received'
+      UPDATE edfs SET status = 'Received' WHERE status = 'Completed';
     `);
 
     console.log('[Database Migration] Schema verification completed safely.');

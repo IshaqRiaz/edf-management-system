@@ -541,25 +541,25 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                             : 'border-slate-200/90 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md'
                         } ${isAdmin ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
                       >
-                        {/* Top Card Row */}
+                        {/* 1. EDF Number & Category */}
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             {isAdmin && (
-                              <GripVertical className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 transition-colors" />
+                              <GripVertical className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 transition-colors shrink-0" />
                             )}
                             <button
                               onClick={() => onViewEdf(edf)}
-                              className="font-mono font-black text-xs text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                              className="font-mono font-black text-xs text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer truncate"
                               title="Click to view details"
                             >
                               {edf.edfNumber}
                             </button>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getCategoryBadgeClass(edf.category)}`}>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${getCategoryBadgeClass(edf.category)}`}>
                               {edf.category}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                             {/* Overdue or Status Pill */}
                             {isOverdue && col.key !== 'Received' && (
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider bg-red-50 text-red-700 dark:bg-red-950/80 dark:text-red-300 border border-red-200 dark:border-red-900 animate-pulse-subtle">
@@ -567,7 +567,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                               </span>
                             )}
 
-                            {/* Partially Received indicator (Requirement 12: A partially received EDF should remain in Pending column but display: 5/10 Received) */}
+                            {/* Partially Received indicator */}
                             {(() => {
                               const rawItems = edf.items || [];
                               const totalCount = edf.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
@@ -577,14 +577,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                               if (isPartial || edf.status === 'Partially Received') {
                                 return (
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide bg-sky-100 text-sky-800 dark:bg-sky-950/90 dark:text-sky-300 border border-sky-300 dark:border-sky-800 shadow-2xs">
-                                    {receivedCount}/{totalCount} Received
+                                    {receivedCount}/{totalCount} Recv
                                   </span>
                                 );
                               }
                               if (col.key === 'Received') {
                                 return (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                    {totalCount}/{totalCount} Received
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                    {totalCount}/{totalCount} Recv
                                   </span>
                                 );
                               }
@@ -593,8 +593,19 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                           </div>
                         </div>
 
-                        {/* Materials Description */}
-                        <div className="mb-3">
+                        {/* 2. Remarks & Notes */}
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 mb-2 p-1.5 rounded-lg bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/60 line-clamp-2">
+                          <span className="font-bold text-slate-400 text-[10px] block mb-0.5">2. Notes:</span>
+                          {edf.remarks ? (
+                            <span>{edf.remarks}</span>
+                          ) : (
+                            <span className="italic text-slate-400">No remarks provided</span>
+                          )}
+                        </div>
+
+                        {/* 3. Material Summary */}
+                        <div className="mb-2.5">
+                          <span className="font-bold text-slate-400 text-[10px] block mb-0.5">3. Materials:</span>
                           <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 line-clamp-2 leading-relaxed">
                             {edf.materialList}
                           </p>
@@ -610,8 +621,28 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                           </div>
                         </div>
 
-                        {/* Requester & Schedule Info */}
-                        <div className="space-y-1.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 text-[11px]">
+                        {/* 4. Priority & 5. Live Timer */}
+                        <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50/60 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/60 mb-2.5">
+                          <div>
+                            <span className="text-[10px] text-slate-400 block font-bold mb-0.5">4. Priority:</span>
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                              edf.priority === 'High'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                : edf.priority === 'Low'
+                                ? 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800'
+                            }`}>
+                              {edf.priority || 'Medium'}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] text-slate-400 block font-bold mb-0.5">5. Live Timer:</span>
+                            <TimerBadge requiredDate={edf.requiredDate} status={edf.status} compact />
+                          </div>
+                        </div>
+
+                        {/* 6. Remaining EDF Information (Requester, Issue Date) */}
+                        <div className="space-y-1 pt-2 border-t border-slate-100 dark:border-slate-800/80 text-[11px]">
                           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                             <span className="flex items-center gap-1.5 truncate max-w-[150px]">
                               <User className="w-3 h-3 text-slate-400" />
@@ -623,14 +654,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                             <span className="text-[10px] text-slate-400">
                               {new Date(edf.issueDate).toLocaleDateString()}
                             </span>
-                          </div>
-
-                          {/* Live Timer Countdown */}
-                          <div className="flex items-center justify-between gap-1 pt-1">
-                            <span className="text-[10px] text-slate-400 font-semibold">
-                              Deadline:
-                            </span>
-                            <TimerBadge requiredDate={edf.requiredDate} status={edf.status} compact />
                           </div>
                         </div>
 
