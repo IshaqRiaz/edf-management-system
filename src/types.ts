@@ -24,7 +24,6 @@ export interface Requester {
 }
 
 export type EDFStatus = 'Pending' | 'Partially Received' | 'Received' | 'Overdue';
-export type EDFPriority = 'Low' | 'Medium' | 'High';
 
 export interface EDFItem {
   id?: number;
@@ -71,7 +70,6 @@ export interface EDF {
   quantity: number;
   unit: string;
   status: EDFStatus;
-  priority?: EDFPriority;
   remarks?: string | null;
   createdBy?: string | null;
   createdAt?: string;

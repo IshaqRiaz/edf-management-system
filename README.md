@@ -20,7 +20,6 @@ A modern, responsive **Employee Demand Form (EDF) & Material Request Management 
 
 * Create, edit, view, and manage EDFs
 * Track request lifecycle
-* Priority management
 * Requester selection
 * Remarks & Notes
 * Material summary

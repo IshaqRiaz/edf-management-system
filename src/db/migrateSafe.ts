@@ -65,7 +65,6 @@ export async function runSafeDatabaseMigration(): Promise<void> {
         quantity INTEGER NOT NULL DEFAULT 1,
         unit TEXT NOT NULL DEFAULT 'pcs',
         status TEXT NOT NULL DEFAULT 'Pending',
-        priority TEXT NOT NULL DEFAULT 'Medium',
         remarks TEXT,
         created_by TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
@@ -105,7 +104,7 @@ export async function runSafeDatabaseMigration(): Promise<void> {
     // 2. Safe additive column migrations (ALTER TABLE ... ADD COLUMN IF NOT EXISTS)
     // Ensures any columns added in future updates won't fail and won't drop existing records.
     await pool.query(`
-      ALTER TABLE edfs ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'Medium';
+      ALTER TABLE edfs DROP COLUMN IF EXISTS priority;
       ALTER TABLE edfs ADD COLUMN IF NOT EXISTS remarks TEXT;
       ALTER TABLE edfs ADD COLUMN IF NOT EXISTS created_by TEXT;
       ALTER TABLE edfs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();

@@ -692,7 +692,6 @@ app.get('/api/edfs', authenticate, async (req: Request, res: Response) => {
 
       return {
         ...item,
-        priority: item.priority || 'Medium',
         status: currentStatus,
         isOverdue,
         receivedItemsCount: receivedCount,
@@ -935,7 +934,6 @@ app.post('/api/edfs', authenticate, requireAdmin, async (req: AuthRequest, res: 
       materialList,
       quantity,
       unit,
-      priority,
       remarks,
       items,
     } = req.body;
@@ -952,7 +950,6 @@ app.post('/api/edfs', authenticate, requireAdmin, async (req: AuthRequest, res: 
     // Initial status check
     const isPast = rDate.getTime() < Date.now();
     const initialStatus = isPast ? 'Overdue' : 'Pending';
-    const safePriority = priority && ['Low', 'Medium', 'High'].includes(priority) ? priority : 'Medium';
 
     const [created] = await db
       .insert(edfs)
@@ -966,7 +963,6 @@ app.post('/api/edfs', authenticate, requireAdmin, async (req: AuthRequest, res: 
         quantity: quantity ? parseInt(quantity, 10) : 1,
         unit: unit ? unit.trim() : 'pcs',
         status: initialStatus,
-        priority: safePriority,
         remarks: remarks ? remarks.trim() : null,
         createdBy: req.user?.phone || 'admin',
       })
@@ -1151,7 +1147,6 @@ app.post('/api/edfs/batch-import-csv', authenticate, requireAdmin, async (req: A
             quantity: totalQty,
             unit: itemsToInsert[0]?.unit || 'pcs',
             status: initialStatus,
-            priority: 'Medium',
             remarks: safeRemarks,
             createdBy: req.user?.phone || 'admin',
           })
@@ -1216,7 +1211,6 @@ app.put('/api/edfs/:id', authenticate, requireAdmin, async (req: AuthRequest, re
       quantity,
       unit,
       status,
-      priority,
       remarks,
       items,
     } = req.body;
@@ -1244,7 +1238,6 @@ app.put('/api/edfs/:id', authenticate, requireAdmin, async (req: AuthRequest, re
     const safeMaterialList = (materialList && materialList.trim()) ? materialList.trim() : existing.materialList;
     const safeQuantity = (quantity !== undefined && !isNaN(parseInt(quantity, 10))) ? parseInt(quantity, 10) : existing.quantity;
     const safeUnit = (unit && unit.trim()) ? unit.trim() : existing.unit;
-    const safePriority = (priority && ['Low', 'Medium', 'High'].includes(priority)) ? priority : existing.priority || 'Medium';
     const safeRemarks = remarks !== undefined ? (remarks?.trim() || null) : existing.remarks;
 
     // Auto-save requester name if new
@@ -1264,7 +1257,6 @@ app.put('/api/edfs/:id', authenticate, requireAdmin, async (req: AuthRequest, re
         quantity: safeQuantity,
         unit: safeUnit,
         status: finalStatus,
-        priority: safePriority,
         remarks: safeRemarks,
         updatedAt: new Date(),
       })

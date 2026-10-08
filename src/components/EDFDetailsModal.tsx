@@ -357,32 +357,22 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             </div>
           </div>
 
-          {/* 4. Priority & 5. Live Timer Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-indigo-50/30 dark:from-slate-950 dark:to-indigo-950/20 border border-indigo-100 dark:border-slate-800 items-center">
+          {/* 4. Live Timer Row */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-indigo-50/30 dark:from-slate-950 dark:to-indigo-950/20 border border-indigo-100 dark:border-slate-800">
             <div>
-              <span className="text-[10px] font-bold text-slate-400 block mb-1">
-                4. Priority:
+              <span className="text-[10px] font-bold text-slate-400 block mb-0.5">
+                4. Live Countdown Timer:
               </span>
-              <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-black border ${
-                edf.priority === 'High'
-                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-rose-300 dark:border-rose-800'
-                  : edf.priority === 'Low'
-                  ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 dark:border-amber-800'
-              }`}>
-                {edf.priority || 'Medium'} Priority
+              <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                Active tracking toward required delivery date
               </span>
             </div>
-
-            <div className="flex flex-col sm:items-end">
-              <span className="text-[10px] font-bold text-slate-400 block mb-1">
-                5. Live Timer:
-              </span>
+            <div>
               <TimerBadge requiredDate={edf.requiredDate} status={edf.status} compact />
             </div>
           </div>
 
-          {/* 6. Remaining EDF Information (Requester, Category, Dates) */}
+          {/* 5. Remaining EDF Information (Requester, Category, Dates) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800">
             <div>
               <span className="text-[11px] font-semibold text-slate-400">Requester</span>

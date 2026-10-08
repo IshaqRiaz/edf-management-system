@@ -30,7 +30,6 @@ export const edfs = pgTable('edfs', {
   quantity: integer('quantity').notNull().default(1),
   unit: text('unit').notNull().default('pcs'),
   status: text('status').notNull().default('Pending'), // 'Pending' | 'Partially Received' | 'Received' | 'Overdue'
-  priority: text('priority').notNull().default('Medium'), // 'Low' | 'Medium' | 'High'
   remarks: text('remarks'),
   createdBy: text('created_by'),
   createdAt: timestamp('created_at').defaultNow(),

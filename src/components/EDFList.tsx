@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { EDF, Category, EDFItem } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
 import { HighlightText } from './HighlightText.tsx';
+import { ReceivingProgressBar } from './ReceivingProgressBar.tsx';
 import { useTheme } from '../context/ThemeContext.tsx';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
 import {
@@ -141,15 +142,26 @@ export const EDFList: React.FC<EDFListProps> = ({
         return false;
       }
 
-      // Search query (Keyword, EDF Number, Requester Name, Material List, Remarks)
+      // Search query (Keyword, EDF Number, Requester Name, Material List, Remarks, Unit, Items)
       if (search.trim()) {
-        const q = search.trim().toLowerCase();
-        const matchNumber = item.edfNumber.toLowerCase().includes(q);
-        const matchName = item.requesterName.toLowerCase().includes(q);
-        const matchCategory = item.category.toLowerCase().includes(q);
-        const matchMaterial = item.materialList.toLowerCase().includes(q);
-        const matchRemarks = item.remarks ? item.remarks.toLowerCase().includes(q) : false;
-        if (!matchNumber && !matchName && !matchCategory && !matchMaterial && !matchRemarks) {
+        const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
+
+        const matchesAllTokens = tokens.every((token) => {
+          const matchNumber = checkStr(item.edfNumber).includes(token);
+          const matchName = checkStr(item.requesterName).includes(token);
+          const matchCategory = checkStr(item.category).includes(token);
+          const matchMaterial = checkStr(item.materialList).includes(token);
+          const matchUnit = checkStr(item.unit).includes(token);
+          const matchRemarks = checkStr(item.remarks).includes(token);
+          const matchItems = item.items?.some((it) =>
+            checkStr(it.itemDescription).includes(token) || checkStr(it.unit).includes(token)
+          ) || false;
+
+          return matchNumber || matchName || matchCategory || matchMaterial || matchUnit || matchRemarks || matchItems;
+        });
+
+        if (!matchesAllTokens) {
           return false;
         }
       }
@@ -224,60 +236,18 @@ export const EDFList: React.FC<EDFListProps> = ({
     }
   };
 
-  const getPriorityBadge = (priority?: string) => {
+  // Visual color-coded receiving progress bar helper
+  const renderReceivingBadge = (
+    item: EDF,
+    options?: { size?: 'xs' | 'sm' | 'md'; variant?: 'bar' | 'pill'; className?: string }
+  ) => {
     return (
-      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
-        priority === 'High'
-          ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-          : priority === 'Low'
-          ? 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-          : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800'
-      }`}>
-        {priority || 'Medium'}
-      </span>
-    );
-  };
-
-  // Compact receiving indicator (Requirement 5)
-  const renderReceivingBadge = (item: EDF) => {
-    const rawItems = item.items || [];
-    const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-    const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-    const isPartial = receivedCount > 0 && receivedCount < totalCount;
-    const allReceived = totalCount > 0 && receivedCount === totalCount;
-
-    if (allReceived || item.status === 'Received') {
-      return (
-        <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 whitespace-nowrap"
-          title="All items received"
-        >
-          <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span>Received — {totalCount}/{totalCount}</span>
-        </span>
-      );
-    }
-
-    if (isPartial || item.status === 'Partially Received') {
-      return (
-        <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 whitespace-nowrap"
-          title="Partially Received"
-        >
-          <PackageCheck className="w-3 h-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
-          <span>Partially Received — {receivedCount}/{totalCount} Received</span>
-        </span>
-      );
-    }
-
-    return (
-      <span
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50/80 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 whitespace-nowrap"
-        title="Pending receiving"
-      >
-        <Clock className="w-3 h-3 text-amber-500 shrink-0" />
-        <span>Pending — 0/{totalCount} Received</span>
-      </span>
+      <ReceivingProgressBar
+        item={item}
+        size={options?.size || 'sm'}
+        variant={options?.variant || 'bar'}
+        className={options?.className}
+      />
     );
   };
 
@@ -346,13 +316,19 @@ export const EDFList: React.FC<EDFListProps> = ({
               className="w-full pl-10 pr-10 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-900 dark:text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-inner"
             />
             {search && (
-              <button
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
-                title="Clear search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 text-[10px] font-bold border border-amber-300 dark:border-amber-800 shadow-2xs">
+                  <Sparkles className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                  Highlighting
+                </span>
+                <button
+                  onClick={() => setSearch('')}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-full hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             )}
           </div>
 
@@ -389,18 +365,22 @@ export const EDFList: React.FC<EDFListProps> = ({
 
         {/* Search highlight status banner */}
         {search.trim() && (
-          <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/80 text-xs text-amber-800 dark:text-amber-300 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 text-xs text-amber-900 dark:text-amber-200 shadow-2xs animate-in fade-in duration-200">
             <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
               <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>
-                Keyword Highlight active for: <strong className="underline underline-offset-2">"{search.trim()}"</strong> — Found <strong>{filteredEdfs.length}</strong> matching form(s).
+                Search Term Highlighting active for: <strong className="underline underline-offset-2 px-1.5 py-0.5 rounded bg-amber-200/90 dark:bg-amber-400/30 border border-amber-400/60 dark:border-amber-400/40 text-amber-950 dark:text-amber-100 font-bold">"{search.trim()}"</strong> — Found <strong>{filteredEdfs.length}</strong> matching form{filteredEdfs.length === 1 ? '' : 's'}.
               </span>
             </div>
             <button
               onClick={() => setSearch('')}
-              className="text-[11px] font-bold text-amber-700 dark:text-amber-400 hover:underline"
+              className="text-[11px] font-bold text-amber-800 dark:text-amber-300 hover:text-amber-950 dark:hover:text-amber-100 hover:underline px-2 py-1 rounded-lg hover:bg-amber-100/80 dark:hover:bg-amber-900/40 transition-colors"
             >
-              Clear
+              Clear Search
             </button>
           </div>
         )}
@@ -565,12 +545,10 @@ export const EDFList: React.FC<EDFListProps> = ({
                 <th className="py-2.5 px-2.5 min-w-[130px]">2. Remarks & Notes</th>
                 {/* 3. Material Summary */}
                 <th className="py-2.5 px-2.5 min-w-[170px]">3. Material Summary</th>
-                {/* 4. Priority */}
-                <th className="py-2.5 px-2 text-center w-20 text-xs font-semibold">4. Priority</th>
-                {/* 5. Live Timer */}
-                <th className="py-2.5 px-2 text-center w-28 text-xs font-semibold">5. Live Timer</th>
-                {/* 6. Status */}
-                <th className="py-2.5 px-2 text-center w-28 text-xs font-semibold">6. Status</th>
+                {/* 4. Live Timer */}
+                <th className="py-2.5 px-2 text-center w-28 text-xs font-semibold">4. Live Timer</th>
+                {/* 5. Status & Progress */}
+                <th className="py-2.5 px-2 text-center min-w-[125px] text-xs font-semibold">5. Status & Progress</th>
                 <th className="py-2.5 px-2.5">Category</th>
                 <th className="py-2.5 px-2.5">Requester</th>
                 <th className="py-2.5 px-2.5">Request Date</th>
@@ -582,7 +560,7 @@ export const EDFList: React.FC<EDFListProps> = ({
               {filteredEdfs.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isAdmin ? 12 : 11}
+                    colSpan={isAdmin ? 11 : 10}
                     className="py-12 px-4 text-center text-slate-400 dark:text-slate-500"
                   >
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -662,7 +640,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                           <HighlightText text={item.materialList} query={search} />
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
-                          <span>Unit: <strong className="text-slate-600 dark:text-slate-300 font-semibold">{item.unit}</strong></span>
+                          <span>Unit: <strong className="text-slate-600 dark:text-slate-300 font-semibold"><HighlightText text={item.unit} query={search} /></strong></span>
                           <span>&bull;</span>
                           <span>Qty: <strong className="text-slate-800 dark:text-slate-200 font-bold">{item.quantity}</strong></span>
                           {item.items && item.items.length > 1 && (
@@ -673,29 +651,16 @@ export const EDFList: React.FC<EDFListProps> = ({
                         </div>
                       </td>
 
-                      {/* 4. Priority */}
-                      <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                          item.priority === 'High'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-                            : item.priority === 'Low'
-                            ? 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                            : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800'
-                        }`}>
-                          {item.priority || 'Medium'}
-                        </span>
-                      </td>
-
-                      {/* 5. Live Timer */}
+                      {/* 4. Live Timer */}
                       <td className="py-1.5 px-1 text-center whitespace-nowrap text-xs">
                         <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
                       </td>
 
-                      {/* 6. Status & Receiving Indicator */}
-                      <td className="py-1.5 px-2 text-center whitespace-nowrap text-xs">
-                        <div className="flex flex-col items-center gap-1">
+                      {/* 5. Status & Receiving Progress */}
+                      <td className="py-2 px-2 text-center whitespace-nowrap text-xs">
+                        <div className="flex flex-col items-center gap-1.5 min-w-[110px]">
                           {getStatusBadge(item.status, item.isOverdue)}
-                          {renderReceivingBadge(item)}
+                          <ReceivingProgressBar item={item} size="sm" />
                         </div>
                       </td>
 
@@ -820,9 +785,9 @@ export const EDFList: React.FC<EDFListProps> = ({
                           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-950 shadow-sm space-y-3">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
                               <div>
-                                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center flex-wrap gap-2">
                                   <span>Material Checklist — {item.edfNumber}</span>
-                                  {renderReceivingBadge(item)}
+                                  <ReceivingProgressBar item={item} variant="pill" size="md" />
                                 </h4>
                                 <p className="text-[11px] text-slate-400">
                                   Check individual arrived items. Both Admin and Viewer can mark items received.
@@ -921,9 +886,11 @@ export const EDFList: React.FC<EDFListProps> = ({
                                           )}
                                         </td>
                                         <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">
-                                          {it.itemDescription}
+                                          <HighlightText text={it.itemDescription} query={search} />
                                         </td>
-                                        <td className="py-2 px-3 text-right text-slate-500">{it.unit}</td>
+                                        <td className="py-2 px-3 text-right text-slate-500">
+                                          <HighlightText text={it.unit} query={search} />
+                                        </td>
                                         <td className="py-2 px-3 font-mono font-bold text-right text-slate-900 dark:text-white">
                                           {it.quantity}
                                         </td>
@@ -1028,13 +995,13 @@ export const EDFList: React.FC<EDFListProps> = ({
                           item.category
                         )}`}
                       >
-                        {item.category}
+                        <HighlightText text={item.category} query={search} />
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
                       {getStatusBadge(item.status, item.isOverdue)}
-                      {renderReceivingBadge(item)}
+                      <ReceivingProgressBar item={item} size="xs" />
                     </div>
                   </div>
 
@@ -1061,7 +1028,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                       <HighlightText text={item.materialList} query={search} />
                     </p>
                     <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono mt-1">
-                      <span>Unit: <strong className="text-slate-700 dark:text-slate-300">{item.unit}</strong></span>
+                      <span>Unit: <strong className="text-slate-700 dark:text-slate-300"><HighlightText text={item.unit} query={search} /></strong></span>
                       <span>Qty: <strong className="text-slate-900 dark:text-white font-bold">{item.quantity}</strong></span>
                       {item.items && item.items.length > 1 && (
                         <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold font-sans">
@@ -1071,24 +1038,15 @@ export const EDFList: React.FC<EDFListProps> = ({
                     </div>
                   </div>
 
-                  {/* 4. Priority & 5. Live Timer in unified responsive row */}
-                  <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800 items-center">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-bold mb-1">
-                        4. Priority:
-                      </span>
-                      {getPriorityBadge(item.priority)}
-                    </div>
-
-                    <div className="flex flex-col items-end">
-                      <span className="text-[10px] text-slate-400 block font-bold mb-1">
-                        5. Live Timer:
-                      </span>
-                      <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
-                    </div>
+                  {/* 4. Live Timer */}
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 font-bold">
+                      4. Live Timer:
+                    </span>
+                    <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
                   </div>
 
-                  {/* 6. Remaining EDF information (Requester, Dates) */}
+                  {/* 5. Remaining EDF information (Requester, Dates) */}
                   <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
                     <div>
                       <span className="text-[10px] text-slate-400 block font-semibold">Requester:</span>
@@ -1166,10 +1124,13 @@ export const EDFList: React.FC<EDFListProps> = ({
                   {/* Inline Material Items Checklist for Mobile */}
                   {expandedRowId === item.id && (
                     <div className="p-3 rounded-2xl bg-indigo-50/30 dark:bg-slate-950/80 border border-indigo-200 dark:border-indigo-900/60 space-y-2 mt-2">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          Material Checklist
-                        </span>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            Material Checklist
+                          </span>
+                          <ReceivingProgressBar item={item} variant="pill" size="xs" />
+                        </div>
                         {item.items && item.items.filter((i) => i.status !== 'Received').length > 0 && onReceiveItems && (
                           <button
                             type="button"
@@ -1202,10 +1163,10 @@ export const EDFList: React.FC<EDFListProps> = ({
                                 ) : null}
                                 <div>
                                   <p className="font-semibold text-slate-800 dark:text-slate-200 leading-tight">
-                                    {it.itemDescription}
+                                    <HighlightText text={it.itemDescription} query={search} />
                                   </p>
                                   <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                    {it.quantity} {it.unit}
+                                    {it.quantity} <HighlightText text={it.unit} query={search} />
                                   </p>
                                 </div>
                               </div>

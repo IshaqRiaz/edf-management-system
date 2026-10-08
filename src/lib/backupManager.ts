@@ -283,7 +283,6 @@ export async function restoreFromBackupIfNeeded(): Promise<boolean> {
             quantity: edf.quantity || 1,
             unit: edf.unit || 'pcs',
             status: edf.status || 'Pending',
-            priority: edf.priority || 'Medium',
             remarks: edf.remarks,
             createdBy: edf.createdBy,
             createdAt: edf.createdAt ? new Date(edf.createdAt) : new Date(),

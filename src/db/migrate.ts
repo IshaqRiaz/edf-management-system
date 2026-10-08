@@ -64,7 +64,6 @@ export async function safeMigrateDatabase(): Promise<boolean> {
         quantity INTEGER NOT NULL DEFAULT 1,
         unit TEXT NOT NULL DEFAULT 'pcs',
         status TEXT NOT NULL DEFAULT 'Pending',
-        priority TEXT NOT NULL DEFAULT 'Medium',
         remarks TEXT,
         created_by TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -72,9 +71,9 @@ export async function safeMigrateDatabase(): Promise<boolean> {
       );
     `);
 
-    // Ensure priority column exists if older schema didn't have it
+    // Ensure columns exist or drop priority
     await client.query(`
-      ALTER TABLE edfs ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'Medium';
+      ALTER TABLE edfs DROP COLUMN IF EXISTS priority;
       ALTER TABLE edfs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
       ALTER TABLE edfs ADD COLUMN IF NOT EXISTS created_by TEXT;
       ALTER TABLE edfs ADD COLUMN IF NOT EXISTS remarks TEXT;

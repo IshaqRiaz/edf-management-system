@@ -88,9 +88,8 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
                 <th className="py-3.5 px-3 min-w-[110px]">1. EDF Number</th>
                 <th className="py-3.5 px-3 min-w-[130px]">2. Remarks & Notes</th>
                 <th className="py-3.5 px-3 min-w-[170px]">3. Material Summary</th>
-                <th className="py-3.5 px-2 text-center w-20">4. Priority</th>
-                <th className="py-3.5 px-2 text-center w-28">5. Live Timer</th>
-                <th className="py-3.5 px-2 text-center w-28">6. Status</th>
+                <th className="py-3.5 px-2 text-center w-28">4. Live Timer</th>
+                <th className="py-3.5 px-2 text-center w-28">5. Status</th>
                 <th className="py-3.5 px-3">Category</th>
                 <th className="py-3.5 px-3">Requester</th>
                 <th className="py-3.5 px-3">Issue Date</th>
@@ -101,7 +100,7 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
             <tbody className="divide-y divide-rose-100 dark:divide-rose-900/60 text-xs">
               {overdueEdfs.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-16 text-center text-stone-500 dark:text-stone-400">
+                  <td colSpan={9} className="py-16 text-center text-stone-500 dark:text-stone-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <CheckCircle2 className="w-10 h-10 text-emerald-500" />
                       <p className="text-base font-bold text-stone-800 dark:text-stone-200">
@@ -153,27 +152,12 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
                       </span>
                     </td>
 
-                    {/* 4. Priority */}
-                    <td className="py-3.5 px-2 text-center whitespace-nowrap">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                          item.priority === 'High'
-                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
-                            : item.priority === 'Low'
-                            ? 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-900'
-                        }`}
-                      >
-                        {item.priority || 'Medium'}
-                      </span>
-                    </td>
-
-                    {/* 5. Live Timer */}
+                    {/* 4. Live Timer */}
                     <td className="py-3.5 px-2 text-center whitespace-nowrap">
                       <TimerBadge requiredDate={item.requiredDate} status={item.status} compact />
                     </td>
 
-                    {/* 6. Status */}
+                    {/* 5. Status */}
                     <td className="py-3.5 px-2 text-center whitespace-nowrap">
                       <div className="flex flex-col items-center gap-1">
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-600 text-white shadow-sm shadow-rose-600/30">
