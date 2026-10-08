@@ -21,6 +21,21 @@
           }
           originalConsoleError.apply(console, arguments);
         };
+
+        // Initialize persisted theme immediately to prevent flashing
+        try {
+          var storedTheme = localStorage.getItem('edf_theme');
+          var isDark = storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+            document.documentElement.setAttribute('data-theme', 'dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.classList.add('light');
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        } catch (e) {}
       })();
     </script>
   </head>
