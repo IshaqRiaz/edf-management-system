@@ -243,16 +243,19 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full my-6 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div
+        id="edf-print-document"
+        className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full my-6 overflow-hidden animate-in fade-in zoom-in-95 duration-150 print:border-none print:shadow-none print:my-0 print:max-w-none print:rounded-none"
+      >
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/40">
+        <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/40 print:bg-white print:border-b-2 print:border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 font-bold shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 font-bold shrink-0 print:border print:border-slate-800">
               <FileText className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-lg font-black text-slate-900 dark:text-white font-mono">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white font-mono print:text-black print:text-xl">
                   {edf.edfNumber}
                 </h3>
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getCategoryBadgeClass(edf.category)}`}>
@@ -262,19 +265,20 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                   {edf.status}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 print:text-slate-600">
                 Employee Demand Form Official Record
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 print:hidden">
             <button
               onClick={handlePrint}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold cursor-pointer"
-              title="Print Record"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer transition-all shadow-xs"
+              title="Print Record (Ctrl+P / Cmd+P)"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>Print</span>
             </button>
             <button
               onClick={onClose}
@@ -286,7 +290,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-5 sm:p-6 space-y-5 max-h-[78vh] overflow-y-auto">
+        <div className="p-5 sm:p-6 space-y-5 max-h-[78vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-4 print:space-y-4">
           {/* 1. EDF Number & Status Header */}
           <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2 flex-wrap">
@@ -445,13 +449,13 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             </div>
 
             {/* Checklist Table */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs print:border print:border-slate-400 print:rounded-none">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs print:border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
+                    <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px] print:bg-slate-100 print:text-black print:border-slate-400">
                       {/* Checkbox column */}
-                      <th className="py-2.5 px-3.5 w-12 text-center">
+                      <th className="py-2.5 px-3.5 w-12 text-center print:w-8 print:py-1.5 print:px-2">
                         {pendingItems.length > 0 ? (
                           <input
                             type="checkbox"
@@ -461,21 +465,22 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                               selectedItemIds.length === pendingItems.map((i) => i.id!).filter(Boolean).length
                             }
                             onChange={handleToggleSelectAll}
-                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 accent-blue-600 cursor-pointer"
+                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 accent-blue-600 cursor-pointer print:hidden"
                             title="Select all pending items"
                           />
                         ) : (
-                          <Check className="w-4 h-4 text-emerald-600 mx-auto" />
+                          <Check className="w-4 h-4 text-emerald-600 mx-auto print:hidden" />
                         )}
+                        <span className="hidden print:inline font-bold">#</span>
                       </th>
-                      <th className="py-2.5 px-3.5">Material</th>
-                      <th className="py-2.5 px-3.5 w-24 text-right">Unit</th>
-                      <th className="py-2.5 px-3.5 w-24 text-right">Quantity</th>
-                      <th className="py-2.5 px-3.5 w-28 text-center">Status</th>
-                      <th className="py-2.5 px-3.5 min-w-[180px]">Receiving Info & Actions</th>
+                      <th className="py-2.5 px-3.5 print:py-1.5 print:px-2">Material</th>
+                      <th className="py-2.5 px-3.5 w-24 text-right print:py-1.5 print:px-2">Unit</th>
+                      <th className="py-2.5 px-3.5 w-24 text-right print:py-1.5 print:px-2">Quantity</th>
+                      <th className="py-2.5 px-3.5 w-28 text-center print:py-1.5 print:px-2">Status</th>
+                      <th className="py-2.5 px-3.5 min-w-[180px] print:py-1.5 print:px-2">Receiving Info</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-slate-300">
                     {rawItems.map((item, i) => {
                       const isReceived = item.status === 'Received';
                       const isChecked = Boolean(item.id && selectedItemIds.includes(item.id));
@@ -483,7 +488,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                       return (
                         <tr
                           key={item.id || i}
-                          className={`transition-colors ${
+                          className={`transition-colors print:bg-white print:text-black ${
                             isReceived
                               ? 'bg-emerald-50/30 dark:bg-emerald-950/20 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30'
                               : isChecked
@@ -492,66 +497,72 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                           }`}
                         >
                           {/* Checkbox */}
-                          <td className="py-2.5 px-3.5 text-center">
+                          <td className="py-2.5 px-3.5 text-center print:py-1.5 print:px-2">
                             {isReceived ? (
-                              <div
-                                className="w-4 h-4 rounded bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-2xs"
-                                title="Received"
-                              >
-                                <Check className="w-3 h-3 stroke-[3]" />
-                              </div>
+                              <>
+                                <div
+                                  className="w-4 h-4 rounded bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-2xs print:hidden"
+                                  title="Received"
+                                >
+                                  <Check className="w-3 h-3 stroke-[3]" />
+                                </div>
+                                <span className="hidden print:inline font-mono text-[10px]">{i + 1}</span>
+                              </>
                             ) : item.id ? (
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => handleToggleItemSelect(item.id)}
-                                className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 accent-blue-600 cursor-pointer"
-                                aria-label={`Select ${item.itemDescription}`}
-                              />
+                              <>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleToggleItemSelect(item.id)}
+                                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 accent-blue-600 cursor-pointer print:hidden"
+                                  aria-label={`Select ${item.itemDescription}`}
+                                />
+                                <span className="hidden print:inline font-mono text-[10px]">{i + 1}</span>
+                              </>
                             ) : (
-                              <span className="text-slate-300 dark:text-slate-600 font-mono text-[10px]">
+                              <span className="text-slate-300 dark:text-slate-600 font-mono text-[10px] print:text-black">
                                 {i + 1}
                               </span>
                             )}
                           </td>
 
                           {/* Material Description */}
-                          <td className="py-2.5 px-3.5 font-medium text-slate-800 dark:text-slate-200">
-                            <span className={isReceived ? 'font-semibold text-slate-900 dark:text-white' : ''}>
+                          <td className="py-2.5 px-3.5 font-medium text-slate-800 dark:text-slate-200 print:py-1.5 print:px-2 print:text-black">
+                            <span className={isReceived ? 'font-semibold text-slate-900 dark:text-white print:text-black' : ''}>
                               {item.itemDescription}
                             </span>
                           </td>
 
                           {/* Unit */}
-                          <td className="py-2.5 px-3.5 font-medium text-right text-slate-500">
+                          <td className="py-2.5 px-3.5 font-medium text-right text-slate-500 print:py-1.5 print:px-2 print:text-black">
                             {item.unit}
                           </td>
 
                           {/* Quantity */}
-                          <td className="py-2.5 px-3.5 font-mono font-bold text-right text-slate-900 dark:text-white">
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-right text-slate-900 dark:text-white print:py-1.5 print:px-2 print:text-black">
                             {item.quantity}
                           </td>
 
                           {/* Item Status */}
-                          <td className="py-2.5 px-3.5 text-center whitespace-nowrap">
+                          <td className="py-2.5 px-3.5 text-center whitespace-nowrap print:py-1.5 print:px-2">
                             {isReceived ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                <Check className="w-3 h-3" />
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 print:border-emerald-600 print:bg-emerald-50 print:text-emerald-800 print:px-1.5 print:py-0">
+                                <Check className="w-3 h-3 print:hidden" />
                                 <span>Received</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                <Clock className="w-3 h-3 text-amber-600" />
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800 print:border-amber-600 print:bg-amber-50 print:text-amber-800 print:px-1.5 print:py-0">
+                                <Clock className="w-3 h-3 text-amber-600 print:hidden" />
                                 <span>Pending</span>
                               </span>
                             )}
                           </td>
 
                           {/* Receiving Info & Controlled Undo Option */}
-                          <td className="py-2.5 px-3.5 text-[11px]">
+                          <td className="py-2.5 px-3.5 text-[11px] print:py-1.5 print:px-2">
                             {isReceived ? (
                               <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <div className="text-slate-500 dark:text-slate-400">
+                                <div className="text-slate-500 dark:text-slate-400 print:text-black">
                                   <span>
                                     {item.receivedAt
                                       ? new Date(item.receivedAt).toLocaleDateString([], {
@@ -566,7 +577,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                                       : 'Recorded'}
                                   </span>
                                   {item.receivedBy && (
-                                    <span className="text-slate-400 block text-[10px]">
+                                    <span className="text-slate-400 block text-[10px] print:text-slate-700">
                                       by {item.receivedBy}
                                     </span>
                                   )}
@@ -576,7 +587,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setUndoItemConfirm(item)}
-                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-rose-600 hover:text-rose-800 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[10px] font-bold transition-colors cursor-pointer border border-rose-200 dark:border-rose-900"
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-rose-600 hover:text-rose-800 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[10px] font-bold transition-colors cursor-pointer border border-rose-200 dark:border-rose-900 print:hidden"
                                     title="Undo receiving with confirmation"
                                   >
                                     <Undo2 className="w-3 h-3" />
@@ -585,7 +596,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
                                 )}
                               </div>
                             ) : (
-                              <span className="text-slate-400 italic text-[11px]">
+                              <span className="text-slate-400 italic text-[11px] print:text-slate-600">
                                 Awaiting arrival
                               </span>
                             )}
@@ -599,7 +610,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
 
               {/* Table Footer Helper */}
               {pendingItems.length > 0 && (
-                <div className="p-3 bg-slate-50/70 dark:bg-slate-950/40 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="p-3 bg-slate-50/70 dark:bg-slate-950/40 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs print:hidden">
                   <span className="text-slate-500">
                     {selectedItemIds.length} of {pendingItems.length} pending items checked
                   </span>
@@ -620,7 +631,7 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
           </div>
 
           {/* Activity Timeline Section (Includes history of item receiving & status transitions) */}
-          <div className="space-y-3 pt-2">
+          <div className="space-y-3 pt-2 print:hidden">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50">
@@ -734,8 +745,27 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             )}
           </div>
 
+          {/* Printable Official Signatures & Verification Footer */}
+          <div className="hidden print:grid grid-cols-3 gap-6 pt-10 mt-6 border-t border-slate-300 text-xs">
+            <div>
+              <p className="font-bold text-slate-700">Requested By:</p>
+              <div className="h-12 border-b border-slate-400 mt-2" />
+              <p className="text-[11px] text-slate-600 mt-1">{edf.requesterName || 'Employee'}</p>
+            </div>
+            <div>
+              <p className="font-bold text-slate-700">Received & Inspected By:</p>
+              <div className="h-12 border-b border-slate-400 mt-2" />
+              <p className="text-[11px] text-slate-600 mt-1">Signature & Date</p>
+            </div>
+            <div>
+              <p className="font-bold text-slate-700">Authorized Coordinator:</p>
+              <div className="h-12 border-b border-slate-400 mt-2" />
+              <p className="text-[11px] text-slate-600 mt-1">Approval Signature</p>
+            </div>
+          </div>
+
           {/* Action Bar (Allow both Admin and Viewer to mark as Received) */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-slate-100 dark:border-slate-800 print:hidden">
             {isAdmin && (
               <button
                 onClick={() => {
@@ -750,6 +780,16 @@ export const EDFDetailsModal: React.FC<EDFDetailsModalProps> = ({
             )}
 
             <div className="flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+                title="Print Record"
+              >
+                <Printer className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Print Record</span>
+              </button>
+
               {/* Mark All as Received - available to both Admin and Viewer */}
               {edf.status !== 'Received' && (
                 <button

@@ -64,3 +64,51 @@
 mark.search-highlight {
   animation: highlight-pop 0.3s ease-out;
 }
+
+/* ========================================================================= */
+/* PRINTER-FRIENDLY STYLES FOR EDF DETAILS MODAL                             */
+/* ========================================================================= */
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 15mm 12mm 15mm 12mm;
+  }
+
+  /* Hide everything outside of print-root */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the print document and make it fill page */
+  #edf-print-document,
+  #edf-print-document * {
+    visibility: visible;
+  }
+
+  #edf-print-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .print\\:hidden,
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Force light theme colors on print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+

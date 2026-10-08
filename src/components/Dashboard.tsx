@@ -872,62 +872,62 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 7-DAY EDF CREATION FREQUENCY LINE CHART (RECHARTS)                        */}
+      {/* 7-DAY EDF CREATION FREQUENCY LINE CHART (RECHARTS - COMPACT VIEW)         */}
       {/* ========================================================================= */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 shadow-2xs">
-              <Activity className="w-4 h-4" />
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 shadow-2xs">
+              <Activity className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
                 <span>Edf Creation Frequency (Last 7 Days)</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
+                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
                   Daily Trend
                 </span>
               </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Volume and trajectory of new employee demand forms generated over the past 7 days
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Volume of new demand forms generated over the past 7 days
               </p>
             </div>
           </div>
 
-          {/* Metric Summary Badges */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-bold">
+          {/* Metric Summary Badges - Compact */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800">
+              <span className="text-[9px] text-slate-400 block font-semibold leading-tight">
                 7-Day Total
               </span>
-              <span className="font-mono font-black text-slate-900 dark:text-white text-sm">
-                {sevenDayStats.totalIn7Days} <span className="text-xs font-normal text-slate-400">forms</span>
+              <span className="font-mono font-black text-slate-900 dark:text-white text-xs leading-none">
+                {sevenDayStats.totalIn7Days} <span className="text-[10px] font-normal text-slate-400">forms</span>
               </span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block font-bold">
-                Daily Average
+            <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-800">
+              <span className="text-[9px] text-slate-400 block font-semibold leading-tight">
+                Daily Avg
               </span>
-              <span className="font-mono font-black text-slate-900 dark:text-white text-sm">
-                {sevenDayStats.avgPerDay} <span className="text-xs font-normal text-slate-400">/ day</span>
+              <span className="font-mono font-black text-slate-900 dark:text-white text-xs leading-none">
+                {sevenDayStats.avgPerDay} <span className="text-[10px] font-normal text-slate-400">/day</span>
               </span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60">
-              <span className="text-[10px] text-rose-600 dark:text-rose-400 block font-bold">
+            <div className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60">
+              <span className="text-[9px] text-rose-600 dark:text-rose-400 block font-semibold leading-tight">
                 Peak Day
               </span>
-              <span className="font-mono font-black text-rose-700 dark:text-rose-300 text-sm">
+              <span className="font-mono font-black text-rose-700 dark:text-rose-300 text-xs leading-none">
                 {sevenDayStats.peakDay.day} ({sevenDayStats.peakDay.count})
               </span>
             </div>
           </div>
         </div>
 
-        {/* Recharts Line Chart Container */}
-        <div className="w-full h-64 pt-2">
+        {/* Recharts Line Chart Container - Compact Height */}
+        <div className="w-full h-36 pt-1">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={sevenDayStats.chartData}
-              margin={{ top: 12, right: 16, left: -20, bottom: 4 }}
+              margin={{ top: 8, right: 12, left: -24, bottom: 0 }}
             >
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -939,14 +939,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 dataKey="day"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
-                dy={6}
+                tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                dy={4}
               />
               <YAxis
                 allowDecimals={false}
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'monospace' }}
+                tick={{ fontSize: 10, fill: '#94a3b8', fontFamily: 'monospace' }}
                 dx={-4}
               />
               <Tooltip content={<CustomChartTooltip />} />
@@ -955,9 +955,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 dataKey="count"
                 name="EDFs Created"
                 stroke="#f43f5e"
-                strokeWidth={3.5}
-                dot={{ r: 4.5, fill: '#f43f5e', strokeWidth: 2.5, stroke: '#ffffff' }}
-                activeDot={{ r: 7.5, fill: '#f43f5e', stroke: '#ffffff', strokeWidth: 3 }}
+                strokeWidth={2.5}
+                dot={{ r: 3.5, fill: '#f43f5e', strokeWidth: 2, stroke: '#ffffff' }}
+                activeDot={{ r: 5.5, fill: '#f43f5e', stroke: '#ffffff', strokeWidth: 2 }}
               />
             </LineChart>
           </ResponsiveContainer>

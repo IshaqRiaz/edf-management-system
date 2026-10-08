@@ -58,6 +58,16 @@ const MainLayout: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterOverdueOnly, setFilterOverdueOnly] = useState<boolean>(false);
 
+  // Global search state shared between Navbar and EDF List
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+
+  const handleGlobalSearchChange = (query: string) => {
+    setGlobalSearchQuery(query);
+    if (query.trim() && activeTab !== 'edfs') {
+      setActiveTab('edfs');
+    }
+  };
+
   // In-app Toast Notification State (Avoids window.alert)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -454,6 +464,9 @@ const MainLayout: React.FC = () => {
         onNavigateToAuditLog={() => setActiveTab('audit_log')}
         edfs={edfs}
         onSelectEdf={(edf) => setViewingEdf(edf)}
+        searchTerm={globalSearchQuery}
+        onSearchChange={handleGlobalSearchChange}
+        onNavigateToEdfs={() => setActiveTab('edfs')}
       />
 
       <div className="flex flex-1">
@@ -521,6 +534,8 @@ const MainLayout: React.FC = () => {
               initialCategory={filterCategory}
               initialStatus={filterStatus}
               initialOverdueOnly={filterOverdueOnly}
+              searchQuery={globalSearchQuery}
+              onSearchQueryChange={setGlobalSearchQuery}
             />
           )}
 

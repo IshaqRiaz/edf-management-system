@@ -65,6 +65,8 @@ interface EDFListProps {
   initialCategory?: string;
   initialStatus?: string;
   initialOverdueOnly?: boolean;
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
 }
 
 export const EDFList: React.FC<EDFListProps> = ({
@@ -85,9 +87,19 @@ export const EDFList: React.FC<EDFListProps> = ({
   initialCategory = 'All',
   initialStatus = 'All',
   initialOverdueOnly = false,
+  searchQuery,
+  onSearchQueryChange,
 }) => {
   const { accent } = useTheme();
-  const [search, setSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
+  const search = searchQuery !== undefined ? searchQuery : localSearch;
+  const setSearch = (query: string) => {
+    if (onSearchQueryChange) {
+      onSearchQueryChange(query);
+    } else {
+      setLocalSearch(query);
+    }
+  };
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
   const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
   const [overdueOnly, setOverdueOnly] = useState<boolean>(initialOverdueOnly);
