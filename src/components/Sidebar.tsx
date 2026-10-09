@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
 import { useTheme, AccentColor } from '../context/ThemeContext.tsx';
+import { PWAInstallButton } from './PWAInstallButton.tsx';
 import {
   LayoutDashboard,
   FileSpreadsheet,
@@ -258,8 +259,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </div>
 
-        {/* Bottom role status indicator */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+        {/* Bottom role status indicator & install button */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          <PWAInstallButton variant="sidebar" />
+
           <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80">
             <div className="flex items-center gap-2 mb-1">
               <span

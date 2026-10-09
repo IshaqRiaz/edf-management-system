@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { ThemeProvider } from './context/ThemeContext.tsx';
 import { EDF, Category, DashboardStats, ActivityLog } from './types.ts';
@@ -17,6 +17,24 @@ import { SettingsModal } from './components/SettingsModal.tsx';
 import { KanbanBoard } from './components/KanbanBoard.tsx';
 import { AuditLog } from './components/AuditLog.tsx';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import {
+  saveLocalEDFs,
+  getLocalEDFs,
+  upsertLocalEDF,
+  deleteLocalEDF,
+  saveLocalCategories,
+  getLocalCategories,
+  saveLocalStats,
+  getLocalStats,
+  enqueueSyncAction,
+  getSyncQueue,
+  removeSyncAction,
+  remapSyncQueueId,
+  computeStatsFromEDFs,
+  SyncQueueItem,
+} from './utils/offlineStorage.ts';
+import { useOnlineStatus } from './hooks/useOnlineStatus.ts';
+import { OfflineIndicator } from './components/OfflineIndicator.tsx';
 
 const initialStats: DashboardStats = {
   total: 0,
@@ -37,6 +55,7 @@ const initialStats: DashboardStats = {
 
 const MainLayout: React.FC = () => {
   const { user, token, isAdmin, isLoading: authLoading, updateUser } = useAuth();
+  const isOnline = useOnlineStatus();
 
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -46,6 +65,11 @@ const MainLayout: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<DashboardStats>(initialStats);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Sync Queue Tracking
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const isSyncingRef = useRef(false);
 
   // Modals
   const [viewingEdf, setViewingEdf] = useState<EDF | null>(null);
@@ -58,16 +82,6 @@ const MainLayout: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterOverdueOnly, setFilterOverdueOnly] = useState<boolean>(false);
 
-  // Global search state shared between Navbar and EDF List
-  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
-
-  const handleGlobalSearchChange = (query: string) => {
-    setGlobalSearchQuery(query);
-    if (query.trim() && activeTab !== 'edfs') {
-      setActiveTab('edfs');
-    }
-  };
-
   // In-app Toast Notification State (Avoids window.alert)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
@@ -76,6 +90,12 @@ const MainLayout: React.FC = () => {
     setTimeout(() => {
       setToast((curr) => (curr?.message === message ? null : curr));
     }, 4000);
+  }, []);
+
+  // Update sync count from local queue
+  const refreshSyncCount = useCallback(async () => {
+    const queue = await getSyncQueue();
+    setPendingSyncCount(queue.length);
   }, []);
 
   // Resilient fetch helper with automatic retry for smooth server transitions
@@ -98,29 +118,211 @@ const MainLayout: React.FC = () => {
     }
   }, [token]);
 
-  // Fetch all EDFs
+  // Load local IndexedDB cache initially so app opens immediately offline or online
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const [cachedEdfs, cachedCats, cachedStats] = await Promise.all([
+          getLocalEDFs(),
+          getLocalCategories(),
+          getLocalStats(),
+        ]);
+        if (!isMounted) return;
+        if (cachedEdfs && cachedEdfs.length > 0) {
+          setEdfs(cachedEdfs);
+        }
+        if (cachedCats && cachedCats.length > 0) {
+          setCategories(cachedCats);
+        }
+        if (cachedStats) {
+          setStats(cachedStats);
+        } else if (cachedEdfs && cachedEdfs.length > 0) {
+          setStats(computeStatsFromEDFs(cachedEdfs));
+        }
+        await refreshSyncCount();
+      } catch (err) {
+        console.warn('Initial IndexedDB cache read:', err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshSyncCount]);
+
+  // Fetch all EDFs from server, with fallback to IndexedDB
   const fetchEDFs = useCallback(async () => {
+    if (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine) {
+      const local = await getLocalEDFs();
+      if (local && local.length > 0) setEdfs(local);
+      return;
+    }
+
     const data = await fetchWithRetry('/api/edfs');
     if (Array.isArray(data)) {
       setEdfs(data);
+      // Persist latest state to IndexedDB
+      await saveLocalEDFs(data);
+    } else {
+      // Fallback to IndexedDB
+      const local = await getLocalEDFs();
+      if (local && local.length > 0) setEdfs(local);
     }
-  }, [fetchWithRetry]);
+  }, [fetchWithRetry, isOnline]);
 
   // Fetch Dashboard Stats
   const fetchStats = useCallback(async () => {
+    if (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine) {
+      const localEdfs = await getLocalEDFs();
+      const calculated = computeStatsFromEDFs(localEdfs);
+      setStats(calculated);
+      return;
+    }
+
     const data = await fetchWithRetry('/api/dashboard/stats');
     if (data && typeof data === 'object') {
       setStats(data);
+      await saveLocalStats(data);
+    } else {
+      const localEdfs = await getLocalEDFs();
+      const calculated = computeStatsFromEDFs(localEdfs);
+      setStats(calculated);
     }
-  }, [fetchWithRetry]);
+  }, [fetchWithRetry, isOnline]);
 
   // Fetch Categories
   const fetchCategories = useCallback(async () => {
     const data = await fetchWithRetry('/api/categories');
     if (Array.isArray(data)) {
       setCategories(data);
+      await saveLocalCategories(data);
+    } else {
+      const localCats = await getLocalCategories();
+      if (localCats && localCats.length > 0) setCategories(localCats);
     }
   }, [fetchWithRetry]);
+
+  // Sync queued offline changes with the server
+  const processSyncQueue = useCallback(async () => {
+    if (!token || !isOnline || isSyncingRef.current) return;
+    const queue = await getSyncQueue();
+    if (queue.length === 0) return;
+
+    isSyncingRef.current = true;
+    setIsSyncing(true);
+
+    let syncedCount = 0;
+    try {
+      for (const item of queue) {
+        try {
+          let success = false;
+          if (item.action === 'create') {
+            const res = await fetch('/api/edfs', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(item.payload),
+            });
+            if (res.ok) {
+              const created = await res.json();
+              const localTempId = item.payload?.id;
+              if (localTempId && created?.id && localTempId !== created.id) {
+                await remapSyncQueueId(localTempId, created.id);
+              }
+              success = true;
+            } else if (res.status === 409 || res.status === 400) {
+              // 409/400 (already exists) is safe to treat as synced
+              success = true;
+            }
+          } else if (item.action === 'update') {
+            const res = await fetch(`/api/edfs/${item.payload.id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(item.payload.data),
+            });
+            success = res.ok;
+          } else if (item.action === 'delete') {
+            const res = await fetch(`/api/edfs/${item.payload.id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            success = res.ok || res.status === 404;
+          } else if (item.action === 'mark-status') {
+            const res = await fetch(`/api/edfs/${item.payload.id}/mark-status`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ status: item.payload.status }),
+            });
+            success = res.ok;
+          } else if (item.action === 'receive-items') {
+            const res = await fetch(`/api/edfs/${item.payload.edfId}/receive-items`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ itemIds: item.payload.itemIds }),
+            });
+            success = res.ok;
+          } else if (item.action === 'undo-item-received') {
+            const res = await fetch(`/api/edfs/${item.payload.edfId}/undo-item-received`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ itemId: item.payload.itemId }),
+            });
+            success = res.ok;
+          } else if (item.action === 'bulk-action') {
+            const res = await fetch('/api/edfs/bulk-action', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(item.payload),
+            });
+            success = res.ok;
+          }
+
+          if (success) {
+            await removeSyncAction(item.id);
+            syncedCount++;
+          }
+        } catch (itemErr) {
+          console.error('Error syncing item:', item.id, itemErr);
+          break; // Stop sync loop if connection broke mid-way
+        }
+      }
+
+      await refreshSyncCount();
+      if (syncedCount > 0) {
+        showToast(`Synced ${syncedCount} offline change${syncedCount > 1 ? 's' : ''} to database!`, 'success');
+        // Refresh truth from server after syncing
+        await Promise.all([fetchEDFs(), fetchStats(), fetchCategories()]);
+      }
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncing(false);
+    }
+  }, [token, isOnline, refreshSyncCount, showToast, fetchEDFs, fetchStats, fetchCategories]);
+
+  // When internet reconnects, automatically flush the sync queue
+  useEffect(() => {
+    if (isOnline && token) {
+      processSyncQueue();
+    }
+  }, [isOnline, token, processSyncQueue]);
 
   // Refresh all application data
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -129,9 +331,10 @@ const MainLayout: React.FC = () => {
     if (isManual) setIsManualRefreshing(true);
     else setIsLoading(true);
     await Promise.all([fetchEDFs(), fetchStats(), fetchCategories()]);
+    await refreshSyncCount();
     if (isManual) setIsManualRefreshing(false);
     else setIsLoading(false);
-  }, [fetchEDFs, fetchStats, fetchCategories]);
+  }, [fetchEDFs, fetchStats, fetchCategories, refreshSyncCount]);
 
   useEffect(() => {
     if (token) {
@@ -139,15 +342,16 @@ const MainLayout: React.FC = () => {
     }
   }, [token, refreshAllData]);
 
-  // Periodic subtle background poll to update overdue calculations, statuses, timers, and stats every 5 seconds
+  // Periodic subtle background poll when online
   useEffect(() => {
-    if (!token) return;
+    if (!token || !isOnline) return;
     const interval = setInterval(() => {
       fetchEDFs();
       fetchStats();
+      processSyncQueue();
     }, 5000);
     return () => clearInterval(interval);
-  }, [token, fetchEDFs, fetchStats]);
+  }, [token, isOnline, fetchEDFs, fetchStats, processSyncQueue]);
 
   // Handle Dashboard Click Navigation to Filtered Records
   const handleFilterNavigate = (
@@ -174,8 +378,59 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  // Create EDF
+  // Create EDF (Works online and offline)
   const handleSaveNewEDF = async (payload: any): Promise<boolean> => {
+    const isNetworkOnline = isOnline && typeof navigator !== 'undefined' && navigator.onLine;
+
+    // Create optimistic local record with unique ID
+    const newLocalId = payload.id || Date.now();
+    const createdDate = payload.createdAt || new Date().toISOString();
+    const finalEdfNumber =
+      payload.edfNumber && payload.edfNumber.trim()
+        ? payload.edfNumber.trim()
+        : `EDF-${new Date().getFullYear()}-OFF${String(Date.now()).slice(-4)}`;
+    payload.edfNumber = finalEdfNumber;
+
+    const localEdf: EDF = {
+      id: newLocalId,
+      edfNumber: finalEdfNumber,
+      requesterName: payload.requesterName,
+      category: payload.category,
+      issueDate: payload.issueDate,
+      requiredDate: payload.requiredDate,
+      materialList: payload.materialList || '',
+      quantity: payload.quantity || 1,
+      unit: payload.unit || 'pcs',
+      status: 'Pending',
+      remarks: payload.remarks || null,
+      createdBy: user?.name || 'You',
+      createdAt: createdDate,
+      items: (payload.items || []).map((it: any, idx: number) => ({
+        id: idx + 1,
+        edfId: newLocalId,
+        itemDescription: it.itemDescription,
+        quantity: it.quantity || 1,
+        unit: it.unit || 'pcs',
+        status: 'Pending',
+      })),
+      totalItemsCount: payload.items?.length || 1,
+      receivedItemsCount: 0,
+      isOverdue: false,
+    };
+
+    if (!isNetworkOnline) {
+      // Store in IndexedDB and enqueue sync
+      await upsertLocalEDF(localEdf);
+      await enqueueSyncAction('create', payload);
+      setEdfs((prev) => [localEdf, ...prev]);
+      setStats((prev) => computeStatsFromEDFs([localEdf, ...edfs]));
+      await refreshSyncCount();
+      setIsCreateModalOpen(false);
+      setActiveTab('edfs');
+      showToast('Saved offline! Will sync automatically when connected.', 'info');
+      return true;
+    }
+
     try {
       const res = await fetch('/api/edfs', {
         method: 'POST',
@@ -187,9 +442,16 @@ const MainLayout: React.FC = () => {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        showToast(data.error || 'Failed to create EDF', 'error');
-        return false;
+        // Fallback to offline queue if server is down
+        await upsertLocalEDF(localEdf);
+        await enqueueSyncAction('create', payload);
+        setEdfs((prev) => [localEdf, ...prev]);
+        setStats((prev) => computeStatsFromEDFs([localEdf, ...edfs]));
+        await refreshSyncCount();
+        setIsCreateModalOpen(false);
+        setActiveTab('edfs');
+        showToast('Saved to offline storage. Queued for sync.', 'info');
+        return true;
       }
 
       await refreshAllData();
@@ -198,14 +460,41 @@ const MainLayout: React.FC = () => {
       showToast('Demand form created successfully!', 'success');
       return true;
     } catch (err: any) {
-      showToast(err.message || 'Error creating EDF', 'error');
-      return false;
+      // Network failed mid-request: save offline safely
+      await upsertLocalEDF(localEdf);
+      await enqueueSyncAction('create', payload);
+      setEdfs((prev) => [localEdf, ...prev]);
+      setStats((prev) => computeStatsFromEDFs([localEdf, ...edfs]));
+      await refreshSyncCount();
+      setIsCreateModalOpen(false);
+      setActiveTab('edfs');
+      showToast('Saved offline! Queued for auto-sync.', 'info');
+      return true;
     }
   };
 
-  // Update existing EDF
+  // Update existing EDF (Works online and offline)
   const handleUpdateEDF = async (payload: any): Promise<boolean> => {
     if (!editingEdf) return false;
+    const isNetworkOnline = isOnline && typeof navigator !== 'undefined' && navigator.onLine;
+
+    const updatedLocalEdf: EDF = {
+      ...editingEdf,
+      ...payload,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (!isNetworkOnline) {
+      await upsertLocalEDF(updatedLocalEdf);
+      await enqueueSyncAction('update', { id: editingEdf.id, data: payload });
+      setEdfs((prev) => prev.map((e) => (e.id === editingEdf.id ? updatedLocalEdf : e)));
+      setStats((prev) => computeStatsFromEDFs(edfs.map((e) => (e.id === editingEdf.id ? updatedLocalEdf : e))));
+      await refreshSyncCount();
+      setEditingEdf(null);
+      showToast('Update saved offline! Will auto-sync when online.', 'info');
+      return true;
+    }
+
     try {
       const res = await fetch(`/api/edfs/${editingEdf.id}`, {
         method: 'PUT',
@@ -217,9 +506,14 @@ const MainLayout: React.FC = () => {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        showToast(data.error || 'Failed to update EDF', 'error');
-        return false;
+        // Fallback to offline queue
+        await upsertLocalEDF(updatedLocalEdf);
+        await enqueueSyncAction('update', { id: editingEdf.id, data: payload });
+        setEdfs((prev) => prev.map((e) => (e.id === editingEdf.id ? updatedLocalEdf : e)));
+        await refreshSyncCount();
+        setEditingEdf(null);
+        showToast('Saved offline. Queued for sync.', 'info');
+        return true;
       }
 
       await refreshAllData();
@@ -227,13 +521,33 @@ const MainLayout: React.FC = () => {
       showToast('Demand form updated successfully!', 'success');
       return true;
     } catch (err: any) {
-      showToast(err.message || 'Error updating EDF', 'error');
-      return false;
+      await upsertLocalEDF(updatedLocalEdf);
+      await enqueueSyncAction('update', { id: editingEdf.id, data: payload });
+      setEdfs((prev) => prev.map((e) => (e.id === editingEdf.id ? updatedLocalEdf : e)));
+      await refreshSyncCount();
+      setEditingEdf(null);
+      showToast('Saved offline! Queued for auto-sync.', 'info');
+      return true;
     }
   };
 
-  // Delete single EDF
+  // Delete single EDF (Works online and offline)
   const handleDeleteEDF = async (id: number) => {
+    const isNetworkOnline = isOnline && typeof navigator !== 'undefined' && navigator.onLine;
+
+    // Optimistic local deletion
+    await deleteLocalEDF(id);
+    const remaining = edfs.filter((e) => e.id !== id);
+    setEdfs(remaining);
+    setStats(computeStatsFromEDFs(remaining));
+
+    if (!isNetworkOnline) {
+      await enqueueSyncAction('delete', { id });
+      await refreshSyncCount();
+      showToast('Demand form deleted locally. Queued for server sync.', 'info');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/edfs/${id}`, {
         method: 'DELETE',
@@ -244,28 +558,42 @@ const MainLayout: React.FC = () => {
         await refreshAllData();
         showToast('Demand form deleted', 'info');
       } else {
-        const data = await res.json();
-        showToast(data.error || 'Failed to delete EDF', 'error');
+        await enqueueSyncAction('delete', { id });
+        await refreshSyncCount();
+        showToast('Deleted locally. Queued for server sync.', 'info');
       }
     } catch (err: any) {
-      showToast(err.message || 'Error deleting EDF', 'error');
+      await enqueueSyncAction('delete', { id });
+      await refreshSyncCount();
+      showToast('Deleted locally. Queued for server sync.', 'info');
     }
   };
 
   // Mark status (Received / Partially Received / Pending)
   const handleMarkStatus = async (id: number, status: 'Received' | 'Partially Received' | 'Pending') => {
-    // Instant optimistic update: stop timer and clear overdue immediately
-    setEdfs((prev) =>
-      prev.map((e) =>
-        e.id === id
-          ? {
-              ...e,
-              status,
-              isOverdue: status === 'Received' ? false : e.isOverdue,
-            }
-          : e
-      )
+    // Instant optimistic update
+    const updatedList = edfs.map((e) =>
+      e.id === id
+        ? {
+            ...e,
+            status,
+            isOverdue: status === 'Received' ? false : e.isOverdue,
+          }
+        : e
     );
+    setEdfs(updatedList);
+    setStats(computeStatsFromEDFs(updatedList));
+
+    const targetEdf = updatedList.find((e) => e.id === id);
+    if (targetEdf) await upsertLocalEDF(targetEdf);
+
+    const isNetworkOnline = isOnline && typeof navigator !== 'undefined' && navigator.onLine;
+    if (!isNetworkOnline) {
+      await enqueueSyncAction('mark-status', { id, status });
+      await refreshSyncCount();
+      showToast(`Status updated to ${status} (Offline). Queued for sync.`, 'info');
+      return;
+    }
 
     try {
       const res = await fetch(`/api/edfs/${id}/mark-status`, {
@@ -281,18 +609,58 @@ const MainLayout: React.FC = () => {
         await refreshAllData();
         showToast(`Status marked as ${status}`, 'success');
       } else {
-        const data = await res.json();
-        showToast(data.error || 'Failed to update status', 'error');
-        await refreshAllData();
+        await enqueueSyncAction('mark-status', { id, status });
+        await refreshSyncCount();
+        showToast(`Status saved locally. Queued for sync.`, 'info');
       }
     } catch (err: any) {
-      showToast(err.message || 'Error updating status', 'error');
-      await refreshAllData();
+      await enqueueSyncAction('mark-status', { id, status });
+      await refreshSyncCount();
+      showToast(`Status saved locally. Queued for sync.`, 'info');
     }
   };
 
   // Mark selected items as Received (Partial or Full receiving)
   const handleReceiveItems = async (edfId: number, itemIds: number[]) => {
+    // Optimistic local update
+    const target = edfs.find((e) => e.id === edfId);
+    if (target) {
+      const updatedItems = (target.items || []).map((it) =>
+        itemIds.includes(it.id!)
+          ? {
+              ...it,
+              status: 'Received' as const,
+              receivedAt: new Date().toISOString(),
+              receivedBy: user?.name || 'You',
+            }
+          : it
+      );
+      const totalCount = target.totalItemsCount || updatedItems.length;
+      const recCount = updatedItems.filter((i) => i.status === 'Received').length;
+      const newStatus = recCount >= totalCount ? ('Received' as const) : ('Partially Received' as const);
+      const updatedEdf: EDF = {
+        ...target,
+        items: updatedItems,
+        receivedItemsCount: recCount,
+        status: newStatus,
+        isOverdue: newStatus === 'Received' ? false : target.isOverdue,
+      };
+
+      await upsertLocalEDF(updatedEdf);
+      const nextList = edfs.map((e) => (e.id === edfId ? updatedEdf : e));
+      setEdfs(nextList);
+      setStats(computeStatsFromEDFs(nextList));
+      if (viewingEdf && viewingEdf.id === edfId) setViewingEdf(updatedEdf);
+    }
+
+    const isNetworkOnline = isOnline && typeof navigator !== 'undefined' && navigator.onLine;
+    if (!isNetworkOnline) {
+      await enqueueSyncAction('receive-items', { edfId, itemIds });
+      await refreshSyncCount();
+      showToast('Items marked as received (Offline). Queued for sync.', 'info');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/edfs/${edfId}/receive-items`, {
         method: 'POST',
@@ -305,7 +673,9 @@ const MainLayout: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || 'Failed to mark items as received', 'error');
+        await enqueueSyncAction('receive-items', { edfId, itemIds });
+        await refreshSyncCount();
+        showToast('Saved offline. Queued for sync.', 'info');
         return;
       }
 
@@ -315,12 +685,51 @@ const MainLayout: React.FC = () => {
       }
       showToast(data.message || 'Selected items marked as received', 'success');
     } catch (err: any) {
-      showToast(err.message || 'Error receiving items', 'error');
+      await enqueueSyncAction('receive-items', { edfId, itemIds });
+      await refreshSyncCount();
+      showToast('Saved offline. Queued for sync.', 'info');
     }
   };
 
   // Undo receiving for an individual item
   const handleUndoItemReceived = async (edfId: number, itemId: number) => {
+    const target = edfs.find((e) => e.id === edfId);
+    if (target) {
+      const updatedItems = (target.items || []).map((it) =>
+        it.id === itemId
+          ? {
+              ...it,
+              status: 'Pending' as const,
+              receivedAt: undefined,
+              receivedBy: undefined,
+            }
+          : it
+      );
+      const totalCount = target.totalItemsCount || updatedItems.length;
+      const recCount = updatedItems.filter((i) => i.status === 'Received').length;
+      const newStatus = recCount === 0 ? ('Pending' as const) : ('Partially Received' as const);
+      const updatedEdf: EDF = {
+        ...target,
+        items: updatedItems,
+        receivedItemsCount: recCount,
+        status: newStatus,
+      };
+
+      await upsertLocalEDF(updatedEdf);
+      const nextList = edfs.map((e) => (e.id === edfId ? updatedEdf : e));
+      setEdfs(nextList);
+      setStats(computeStatsFromEDFs(nextList));
+      if (viewingEdf && viewingEdf.id === edfId) setViewingEdf(updatedEdf);
+    }
+
+    const isNetworkOnline = isOnline && typeof navigator !== 'undefined' && navigator.onLine;
+    if (!isNetworkOnline) {
+      await enqueueSyncAction('undo-item-received', { edfId, itemId });
+      await refreshSyncCount();
+      showToast('Reverted locally. Queued for server sync.', 'info');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/edfs/${edfId}/undo-item-received`, {
         method: 'POST',
@@ -333,7 +742,9 @@ const MainLayout: React.FC = () => {
 
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || 'Failed to undo item receiving', 'error');
+        await enqueueSyncAction('undo-item-received', { edfId, itemId });
+        await refreshSyncCount();
+        showToast('Reverted locally. Queued for server sync.', 'info');
         return;
       }
 
@@ -343,7 +754,9 @@ const MainLayout: React.FC = () => {
       }
       showToast(data.message || 'Item status reverted to pending', 'info');
     } catch (err: any) {
-      showToast(err.message || 'Error reverting item status', 'error');
+      await enqueueSyncAction('undo-item-received', { edfId, itemId });
+      await refreshSyncCount();
+      showToast('Reverted locally. Queued for server sync.', 'info');
     }
   };
 
@@ -352,8 +765,35 @@ const MainLayout: React.FC = () => {
     ids: number[],
     action: 'mark-received' | 'mark-completed' | 'delete'
   ) => {
+    const isNetworkOnline = isOnline && typeof navigator !== 'undefined' && navigator.onLine;
+    const apiAction = action === 'mark-completed' ? 'mark-received' : action;
+
+    if (apiAction === 'delete') {
+      for (const id of ids) {
+        await deleteLocalEDF(id);
+      }
+      const nextList = edfs.filter((e) => !ids.includes(e.id));
+      setEdfs(nextList);
+      setStats(computeStatsFromEDFs(nextList));
+    } else {
+      const nextList = edfs.map((e) =>
+        ids.includes(e.id) ? { ...e, status: 'Received' as const, isOverdue: false } : e
+      );
+      setEdfs(nextList);
+      setStats(computeStatsFromEDFs(nextList));
+      for (const item of nextList.filter((e) => ids.includes(e.id))) {
+        await upsertLocalEDF(item);
+      }
+    }
+
+    if (!isNetworkOnline) {
+      await enqueueSyncAction('bulk-action', { ids, action: apiAction });
+      await refreshSyncCount();
+      showToast(`Bulk ${action} saved locally. Queued for sync.`, 'info');
+      return;
+    }
+
     try {
-      const apiAction = action === 'mark-completed' ? 'mark-received' : action;
       const res = await fetch('/api/edfs/bulk-action', {
         method: 'POST',
         headers: {
@@ -365,13 +805,16 @@ const MainLayout: React.FC = () => {
 
       if (res.ok) {
         await refreshAllData();
-        showToast(`Bulk action (${action === 'delete' ? 'Delete' : 'Mark Received'}) executed successfully`, 'success');
+        showToast(`Bulk action executed successfully`, 'success');
       } else {
-        const data = await res.json();
-        showToast(data.error || 'Bulk action failed', 'error');
+        await enqueueSyncAction('bulk-action', { ids, action: apiAction });
+        await refreshSyncCount();
+        showToast('Saved offline. Queued for sync.', 'info');
       }
     } catch (err: any) {
-      showToast(err.message || 'Error performing bulk action', 'error');
+      await enqueueSyncAction('bulk-action', { ids, action: apiAction });
+      await refreshSyncCount();
+      showToast('Saved offline. Queued for sync.', 'info');
     }
   };
 
@@ -464,9 +907,9 @@ const MainLayout: React.FC = () => {
         onNavigateToAuditLog={() => setActiveTab('audit_log')}
         edfs={edfs}
         onSelectEdf={(edf) => setViewingEdf(edf)}
-        searchTerm={globalSearchQuery}
-        onSearchChange={handleGlobalSearchChange}
-        onNavigateToEdfs={() => setActiveTab('edfs')}
+        pendingSyncCount={pendingSyncCount}
+        isSyncing={isSyncing}
+        onSyncNow={processSyncQueue}
       />
 
       <div className="flex flex-1">
@@ -534,8 +977,6 @@ const MainLayout: React.FC = () => {
               initialCategory={filterCategory}
               initialStatus={filterStatus}
               initialOverdueOnly={filterOverdueOnly}
-              searchQuery={globalSearchQuery}
-              onSearchQueryChange={setGlobalSearchQuery}
             />
           )}
 
@@ -629,6 +1070,9 @@ const MainLayout: React.FC = () => {
           onRefreshCategories={fetchCategories}
         />
       )}
+
+      {/* Prominent Floating Online/Offline Indicator Banner */}
+      <OfflineIndicator pendingSyncCount={pendingSyncCount} />
 
       {/* Floating In-App Toast Notification */}
       {toast && (

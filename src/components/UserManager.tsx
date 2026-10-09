@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types.ts';
+import { saveLocalUsers, getLocalUsers } from '../utils/offlineStorage.ts';
 import {
   Users as UsersIcon,
   UserPlus,
@@ -88,7 +89,6 @@ export const UserManager: React.FC<UserManagerProps> = ({
   }, [error]);
 
   const fetchUsers = async () => {
-    setIsLoading(true);
     try {
       const res = await fetch('/api/users', {
         headers: { Authorization: `Bearer ${token}` },
@@ -96,19 +96,37 @@ export const UserManager: React.FC<UserManagerProps> = ({
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
+        await saveLocalUsers(data);
       } else {
-        const errData = await res.json().catch(() => ({}));
-        setError(errData.error || 'Failed to load users');
+        const cached = await getLocalUsers();
+        if (cached && cached.length > 0) {
+          setUsers(cached);
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          setError(errData.error || 'Failed to load users');
+        }
       }
     } catch (err: any) {
-      setError(err.message || 'Error loading users');
+      const cached = await getLocalUsers();
+      if (cached && cached.length > 0) {
+        setUsers(cached);
+      } else {
+        setError('Operating offline. No local users cached yet.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
+    (async () => {
+      const cached = await getLocalUsers();
+      if (cached && cached.length > 0) {
+        setUsers(cached);
+        setIsLoading(false);
+      }
+      fetchUsers();
+    })();
   }, []);
 
   // ---------------------------------------------------------

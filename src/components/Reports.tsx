@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { EDF, Category, EDFStatusHistory } from '../types.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { generateReportPdf, generateReceiptAuditPdf } from '../utils/reportPdf.ts';
+import { getLocalAuditLogs } from '../utils/offlineStorage.ts';
 import {
   BarChart3,
   Download,
@@ -65,9 +66,13 @@ export const Reports: React.FC<ReportsProps> = ({
       if (res.ok) {
         const data = await res.json();
         setStatusLogs(Array.isArray(data) ? data : []);
+      } else {
+        const cached = await getLocalAuditLogs();
+        if (cached && cached.length > 0) setStatusLogs(cached);
       }
     } catch (err) {
-      console.error('Failed to fetch status logs:', err);
+      const cached = await getLocalAuditLogs();
+      if (cached && cached.length > 0) setStatusLogs(cached);
     } finally {
       setIsLoadingLogs(false);
     }

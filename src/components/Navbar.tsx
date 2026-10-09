@@ -4,6 +4,8 @@ import { useTheme, AccentColor } from '../context/ThemeContext.tsx';
 import { EDF } from '../types.ts';
 import { calculateLiveTimer } from '../utils/timer.ts';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
+import { PWAInstallButton } from './PWAInstallButton.tsx';
+import { OfflineSyncBar } from './OfflineSyncBar.tsx';
 import {
   Sun,
   Moon,
@@ -28,10 +30,7 @@ import {
   History,
   CheckCheck,
   Trash2,
-  Search,
-  X,
 } from 'lucide-react';
-import { HighlightText } from './HighlightText.tsx';
 
 interface NavbarProps {
   onToggleSidebar?: () => void;
@@ -42,9 +41,9 @@ interface NavbarProps {
   onNavigateToAuditLog?: () => void;
   edfs?: EDF[];
   onSelectEdf?: (edf: EDF) => void;
-  searchTerm?: string;
-  onSearchChange?: (term: string) => void;
-  onNavigateToEdfs?: () => void;
+  pendingSyncCount?: number;
+  isSyncing?: boolean;
+  onSyncNow?: () => void;
 }
 
 export interface StatusNotification {
@@ -72,58 +71,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateToAuditLog,
   edfs = [],
   onSelectEdf,
-  searchTerm = '',
-  onSearchChange,
-  onNavigateToEdfs,
+  pendingSyncCount = 0,
+  isSyncing = false,
+  onSyncNow,
 }) => {
   const { user, logout, isAdmin } = useAuth();
   const { theme, toggleTheme, accent, setAccent } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showPaletteMenu, setShowPaletteMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
-  const searchInputRef = React.useRef<HTMLInputElement>(null);
-
-  // Global keyboard shortcut to focus search bar ('/' or 'Ctrl+K' / 'Cmd+K')
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const isInput =
-        target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-
-      if ((e.key === '/' && !isInput) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Real-time matching EDFs for search dropdown preview & count
-  const matchingEdfs = useMemo(() => {
-    if (!searchTerm || !searchTerm.trim() || !edfs) return [];
-    const tokens = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
-
-    return edfs.filter((item) => {
-      return tokens.every((token) => {
-        const matchNumber = checkStr(item.edfNumber).includes(token);
-        const matchName = checkStr(item.requesterName).includes(token);
-        const matchCategory = checkStr(item.category).includes(token);
-        const matchMaterial = checkStr(item.materialList).includes(token);
-        const matchUnit = checkStr(item.unit).includes(token);
-        const matchRemarks = checkStr(item.remarks).includes(token);
-        const matchItems =
-          item.items?.some(
-            (it) => checkStr(it.itemDescription).includes(token) || checkStr(it.unit).includes(token)
-          ) || false;
-
-        return matchNumber || matchName || matchCategory || matchMaterial || matchUnit || matchRemarks || matchItems;
-      });
-    });
-  }, [searchTerm, edfs]);
 
   // Local notification history array
   const [notifications, setNotifications] = useState<StatusNotification[]>(() => {
@@ -418,181 +374,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </button>
 
-          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 via-rose-600 to-amber-500 text-white flex items-center justify-center shadow-md shadow-rose-500/25 font-bold">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-slate-900 dark:text-white tracking-tight text-sm sm:text-base md:text-lg whitespace-nowrap">
+                <span className="font-extrabold text-slate-900 dark:text-white tracking-tight text-base sm:text-lg">
                   EDF Management
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 hidden xl:block">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 hidden md:block">
                 Employee Demand Form Control Center
               </p>
             </div>
           </div>
         </div>
 
-        {/* Global Search Bar (Real-time Filter by Requester Name, EDF Number, Material Description) */}
-        <div className="flex-1 max-w-sm sm:max-w-md lg:max-w-xl mx-1 sm:mx-2 md:mx-4 relative min-w-[120px]">
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 group-focus-within:text-rose-500 dark:group-focus-within:text-rose-400 transition-colors pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchTerm}
-              onChange={(e) => {
-                onSearchChange?.(e.target.value);
-                setShowSearchDropdown(true);
-              }}
-              onFocus={() => {
-                if (searchTerm.trim()) setShowSearchDropdown(true);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  setShowSearchDropdown(false);
-                  onNavigateToEdfs?.();
-                } else if (e.key === 'Escape') {
-                  setShowSearchDropdown(false);
-                  searchInputRef.current?.blur();
-                }
-              }}
-              placeholder="Search requester, EDF#, material..."
-              aria-label="Global search EDFs by requester, number, or material"
-              className="w-full pl-9 pr-8 sm:pr-24 py-1.5 sm:py-2 text-xs sm:text-sm bg-slate-100/90 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl sm:rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500/25 focus:border-rose-500 transition-all shadow-2xs"
-            />
-
-            {/* Right controls inside input */}
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-              {searchTerm ? (
-                <>
-                  <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 shadow-2xs">
-                    {matchingEdfs.length} {matchingEdfs.length === 1 ? 'match' : 'matches'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSearchChange?.('');
-                      setShowSearchDropdown(false);
-                      searchInputRef.current?.focus();
-                    }}
-                    className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
-                    title="Clear search"
-                    aria-label="Clear search"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </>
-              ) : (
-                <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-200/50 dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700 rounded shadow-2xs pointer-events-none">
-                  /
-                </kbd>
-              )}
-            </div>
-          </div>
-
-          {/* Real-time search preview dropdown */}
-          {showSearchDropdown && searchTerm.trim() && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowSearchDropdown(false)}
-              />
-              <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150 max-h-[460px] flex flex-col">
-                <div className="px-3.5 py-2.5 bg-slate-50/90 dark:bg-slate-950/80 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <Search className="w-3.5 h-3.5 text-rose-500" />
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                      Live Search Results
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                    {matchingEdfs.length} {matchingEdfs.length === 1 ? 'match' : 'matches'}
-                  </span>
-                </div>
-
-                <div className="overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[340px]">
-                  {matchingEdfs.length === 0 ? (
-                    <div className="p-6 text-center">
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                        No EDF records match <span className="font-bold text-slate-800 dark:text-slate-200">"{searchTerm}"</span>
-                      </p>
-                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                        Try searching by requester name, EDF number (e.g. EDF-2025-001), or material description.
-                      </p>
-                    </div>
-                  ) : (
-                    matchingEdfs.slice(0, 6).map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => {
-                          onSelectEdf?.(item);
-                          setShowSearchDropdown(false);
-                        }}
-                        className="p-3 hover:bg-rose-50/40 dark:hover:bg-slate-800/60 cursor-pointer transition-colors group text-left"
-                      >
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <span className="font-mono font-bold text-xs text-rose-600 dark:text-rose-400 group-hover:underline">
-                            <HighlightText text={item.edfNumber} query={searchTerm} />
-                          </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${getCategoryBadgeClass(item.category)}`}>
-                              {item.category}
-                            </span>
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                                item.status === 'Received'
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                  : item.status === 'Partially Received'
-                                  ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300'
-                                  : item.status === 'Overdue' || item.isOverdue
-                                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
-                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
-                              }`}
-                            >
-                              {item.status}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="text-xs text-slate-700 dark:text-slate-300 font-medium flex items-center gap-1.5 mb-1">
-                          <span className="text-slate-400 text-[11px]">Requester:</span>
-                          <span className="font-semibold text-slate-900 dark:text-white">
-                            <HighlightText text={item.requesterName} query={searchTerm} />
-                          </span>
-                        </div>
-
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
-                          <span className="text-slate-400 font-medium">Material: </span>
-                          <HighlightText text={item.materialList} query={searchTerm} />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {matchingEdfs.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onNavigateToEdfs?.();
-                      setShowSearchDropdown(false);
-                    }}
-                    className="w-full p-2.5 text-center text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 bg-slate-50/50 dark:bg-slate-950/50 border-t border-slate-100 dark:border-slate-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                  >
-                    <span>View all {matchingEdfs.length} filtered records in EDF List</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
         {/* Right side: Live Delivery Watch, Notifications, Theme Toggle, Palette, Profile */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           {/* LIVE DELIVERY WATCH CARD (Real-time Overdue and Due in 24h) */}
           <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-50 via-pink-50/50 to-amber-50 dark:from-rose-950/40 dark:via-slate-900 dark:to-amber-950/30 border border-rose-200/90 dark:border-rose-900/60 shadow-xs">
             <div className="flex items-center gap-1.5 pr-2 border-r border-rose-200 dark:border-rose-800/80">
@@ -629,6 +429,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Offline Sync & Connectivity Indicator */}
+          <OfflineSyncBar
+            pendingSyncCount={pendingSyncCount}
+            isSyncing={isSyncing}
+            onSyncNow={onSyncNow}
+          />
+
+          {/* PWA Install Button */}
+          <PWAInstallButton variant="header" />
 
           {/* NOTIFICATION BELL WITH LOCAL STATUS UPDATE HISTORY ARRAY */}
           <div className="relative">

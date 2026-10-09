@@ -15,7 +15,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('edf_cached_user');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  });
   const [token, setToken] = useState<string | null>(() => {
     return typeof window !== 'undefined' ? localStorage.getItem('edf_auth_token') : null;
   });
@@ -39,14 +51,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (res.ok) {
           const userData = await res.json();
           setUser(userData);
-        } else {
-          // Token expired or invalid
+          localStorage.setItem('edf_cached_user', JSON.stringify(userData));
+        } else if (res.status === 401 || res.status === 403) {
+          // Explicit unauthorized response from server
           localStorage.removeItem('edf_auth_token');
+          localStorage.removeItem('edf_cached_user');
           setToken(null);
           setUser(null);
+        } else {
+          // Server offline / 500 error / unreachable: retain cached user to allow offline access
         }
       } catch (err) {
-        console.error('Auth verification error:', err);
+        // Network fetch error (offline): keep cached user and token!
+        console.warn('Network offline during auth verification, using offline session:', err);
       } finally {
         setIsLoading(false);
       }
@@ -69,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       localStorage.setItem('edf_auth_token', data.token);
+      localStorage.setItem('edf_cached_user', JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
       return { success: true };
@@ -79,12 +97,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     localStorage.removeItem('edf_auth_token');
+    localStorage.removeItem('edf_cached_user');
     setToken(null);
     setUser(null);
   };
 
   const updateUser = (updatedUser: User) => {
     setUser(updatedUser);
+    localStorage.setItem('edf_cached_user', JSON.stringify(updatedUser));
   };
 
   const isAdmin = user?.role === 'admin';
