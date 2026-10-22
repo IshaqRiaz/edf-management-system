@@ -35,6 +35,8 @@ export interface EDFItem {
   receivedAt?: string | null;
   receivedBy?: string | null;
   createdAt?: string;
+  remarks?: string | null;
+  justification?: string | null;
 }
 
 export interface EDFStatusHistory {

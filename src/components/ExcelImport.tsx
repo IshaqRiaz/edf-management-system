@@ -21,6 +21,10 @@ import {
   RefreshCw,
   FileText,
   Info,
+  X,
+  AlertCircle,
+  Check,
+  HelpCircle,
 } from 'lucide-react';
 
 export interface ExtractedCSVEdf {
@@ -36,6 +40,8 @@ export interface ExtractedCSVEdf {
     quantity: number;
     unit: string;
     status: 'Pending' | 'Received';
+    remarks?: string;
+    justification?: string;
   }>;
   isExisting: boolean;
 }
@@ -73,9 +79,64 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     const d = new Date(Date.now() + 3 * 24 * 3600 * 1000);
     return d.toISOString().slice(0, 10);
   });
-  const [remarks, setRemarks] = useState<string>('Imported from Excel table');
+  // Never insert automatic text such as "Imported from Excel". Leave blank if no justification.
+  const [remarks, setRemarks] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  // EDF / PDF Number Detection & Overwrite Safety States
+  const [edfDetectionSource, setEdfDetectionSource] = useState<'detected' | 'ambiguous' | 'missing' | null>(null);
+  const [detectedColumnHeading, setDetectedColumnHeading] = useState<string | null>(null);
+  const [ambiguousNumbers, setAmbiguousNumbers] = useState<string[]>([]);
+  const [isNumberConfirmed, setIsNumberConfirmed] = useState<boolean>(false);
+  const [showNumberConfirmModal, setShowNumberConfirmModal] = useState<boolean>(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState<boolean>(false);
+
+  // Check if current edfNumber matches any existing record to prevent accidental duplicate or overwrite
+  const duplicateExistingEdf = useMemo(() => {
+    if (!edfNumber.trim() || !existingEdfs || existingEdfs.length === 0) return null;
+    const target = edfNumber.trim().toLowerCase();
+    return existingEdfs.find((e) => e.edfNumber.trim().toLowerCase() === target) || null;
+  }, [edfNumber, existingEdfs]);
+
+  // Generate next safe sequential number when duplicate or missing
+  const handleAssignNextUniqueNumber = async () => {
+    try {
+      const res = await fetch('/api/edfs/next-number', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('edf_auth_token')}`,
+        },
+      });
+      const data = await res.json();
+      if (data?.nextEdfNumber) {
+        setEdfNumber(data.nextEdfNumber);
+        setIsNumberConfirmed(true);
+        setEdfDetectionSource('detected');
+        setShowDuplicateModal(false);
+        setValidationErrors((prev) => ({ ...prev, edfNumber: '' }));
+      }
+    } catch {
+      const fallback = `EDF-${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
+      setEdfNumber(fallback);
+      setIsNumberConfirmed(true);
+      setShowDuplicateModal(false);
+      setValidationErrors((prev) => ({ ...prev, edfNumber: '' }));
+    }
+  };
+
+  // Append safe suffix to resolve duplicates
+  const handleAppendSuffix = () => {
+    let suffixNum = 1;
+    let candidate = `${edfNumber.trim()}-${suffixNum}`;
+    while (existingEdfs?.some((e) => e.edfNumber.trim().toLowerCase() === candidate.toLowerCase())) {
+      suffixNum++;
+      candidate = `${edfNumber.trim()}-${suffixNum}`;
+    }
+    setEdfNumber(candidate);
+    setIsNumberConfirmed(true);
+    setShowDuplicateModal(false);
+    setValidationErrors((prev) => ({ ...prev, edfNumber: '' }));
+  };
 
   // CSV Recovery & Import State
   const [csvStep, setCsvStep] = useState<'upload' | 'review'>('upload');
@@ -96,13 +157,13 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.nextEdfNumber) {
-          setEdfNumber(data.nextEdfNumber);
+          setEdfNumber((prev) => (prev ? prev : data.nextEdfNumber));
         } else {
-          setEdfNumber(`EDF-${new Date().getFullYear()}-001`);
+          setEdfNumber((prev) => (prev ? prev : `EDF-${new Date().getFullYear()}-001`));
         }
       })
       .catch(() => {
-        setEdfNumber(`EDF-${new Date().getFullYear()}-001`);
+        setEdfNumber((prev) => (prev ? prev : `EDF-${new Date().getFullYear()}-001`));
       });
 
     if (categories.length > 0) {
@@ -163,7 +224,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     parseRawRows(rawRows);
   };
 
-  // Helper to extract items from 2D array and preserve individual rows for Table/Excel mode
+  // Helper to extract items, PDF/EDF numbers, and justifications from 2D array for Table/Excel modes
   const parseRawRows = (rows: any[][]) => {
     if (!rows || rows.length === 0) {
       setFileError('No data found in the spreadsheet or pasted text.');
@@ -176,57 +237,219 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
       return;
     }
 
-    let headerRowIdx = -1;
-    let descColIdx = 0;
-    let unitColIdx = 1;
-    let qtyColIdx = 2;
+    // 1. Scan top metadata/title rows (first 8 rows) for top-level PDF/EDF number e.g. "PDF Number: 1042" or "EDF No. 2026-005"
+    let metaEdfNumber: string | null = null;
+    let metaEdfHeading: string | null = null;
+    let metaRequester: string | null = null;
+    let metaCategory: string | null = null;
 
-    for (let i = 0; i < Math.min(cleanedRows.length, 5); i++) {
-      const row = cleanedRows[i].map((cell) => String(cell || '').toLowerCase().trim());
-      const hasDesc = row.some(
-        (c) => c.includes('desc') || c.includes('item') || c.includes('material') || c.includes('name')
-      );
-      const hasQty = row.some(
-        (c) => c.includes('qty') || c.includes('quant') || c.includes('count') || c.includes('total')
-      );
+    for (let i = 0; i < Math.min(cleanedRows.length, 8); i++) {
+      const row = cleanedRows[i];
+      for (let cIdx = 0; cIdx < row.length; cIdx++) {
+        const cellStr = String(row[cIdx] || '').trim();
+        if (!cellStr) continue;
 
-      if (hasDesc && hasQty) {
-        headerRowIdx = i;
-        row.forEach((cell, idx) => {
-          if (cell.includes('desc') || cell.includes('item') || cell.includes('material') || cell.includes('name')) {
-            descColIdx = idx;
-          } else if (cell.includes('unit') || cell.includes('uom') || cell.includes('measur')) {
-            unitColIdx = idx;
-          } else if (cell.includes('qty') || cell.includes('quant') || cell.includes('count') || cell.includes('total')) {
-            qtyColIdx = idx;
+        // Check if single cell has "PDF Number: 1042" or "PDF No. 1042" or "EDF# 2026-01"
+        const inlineMatch = cellStr.match(/(?:pdf|edf|demand\s*form|form)\s*(?:no\.?|number|#)?[:\s-]+([a-z0-9_/-]+)/i);
+        if (inlineMatch && inlineMatch[1] && !metaEdfNumber) {
+          metaEdfNumber = inlineMatch[1].trim();
+          metaEdfHeading = cellStr.split(/[:\s-]/)[0];
+        }
+
+        // Check if cell is a label like "PDF Number" and next cell has the value
+        const lower = cellStr.toLowerCase();
+        const cleanLabel = lower.replace(/[^a-z0-9]/g, '');
+        if (
+          (cleanLabel === 'pdfnumber' || cleanLabel === 'pdfno' || cleanLabel === 'pdf' || cleanLabel === 'pdfnum' ||
+           cleanLabel === 'edfnumber' || cleanLabel === 'edfno' || cleanLabel === 'edf' || cleanLabel === 'edfnum' ||
+           cleanLabel === 'demandformnumber' || cleanLabel === 'demandformno' || cleanLabel === 'formno') &&
+          row[cIdx + 1] !== undefined
+        ) {
+          const nextVal = String(row[cIdx + 1] || '').trim();
+          if (nextVal && !metaEdfNumber) {
+            metaEdfNumber = nextVal;
+            metaEdfHeading = cellStr;
           }
-        });
+        }
+
+        // Check if cell has category name
+        if (!metaCategory) {
+          const matchedCat = categories.find((c) => c.name.toLowerCase() === lower);
+          if (matchedCat) {
+            metaCategory = matchedCat.name;
+          }
+        }
+      }
+    }
+
+    // 2. Identify column header row & indices
+    let headerRowIdx = -1;
+    let edfColIdx = -1;
+    let descColIdx = -1;
+    let unitColIdx = -1;
+    let qtyColIdx = -1;
+    let justificationColIdx = -1;
+    let requesterColIdx = -1;
+    let categoryColIdx = -1;
+    let detectedEdfColName: string | null = null;
+    let detectedJustColName: string | null = null;
+
+    for (let i = 0; i < Math.min(cleanedRows.length, 10); i++) {
+      const row = cleanedRows[i].map((cell) => String(cell || '').toLowerCase().trim());
+
+      let tempEdfCol = -1;
+      let tempDescCol = -1;
+      let tempUnitCol = -1;
+      let tempQtyCol = -1;
+      let tempJustCol = -1;
+      let tempReqCol = -1;
+      let tempCatCol = -1;
+      let tempEdfName = '';
+      let tempJustName = '';
+
+      row.forEach((cell, idx) => {
+        const clean = cell.replace(/[^a-z0-9]/g, '');
+
+        // 1. PDF / EDF Number Column detection
+        if (
+          cell.includes('pdf number') || cell.includes('pdf no') || cell.includes('pdf #') || cell === 'pdf' ||
+          cell.includes('edf number') || cell.includes('edf no') || cell.includes('edf #') || cell === 'edf' ||
+          cell.includes('demand form') || cell.includes('demand no') || cell.includes('form no') || cell.includes('form number') ||
+          clean === 'pdfnumber' || clean === 'pdfno' || clean === 'pdf' || clean === 'pdfnum' ||
+          clean === 'edfnumber' || clean === 'edfno' || clean === 'edf' || clean === 'edfnum' ||
+          clean === 'demandformnumber' || clean === 'demandformno' || clean === 'formnumber' || clean === 'formno'
+        ) {
+          tempEdfCol = idx;
+          tempEdfName = String(cleanedRows[i][idx] || 'PDF Number');
+        }
+        // 2. Justification & Requirements For & Remarks Column detection
+        else if (
+          cell.includes('justif') || cell.includes('requirement') || cell.includes('requir for') ||
+          cell.includes('reason') || cell.includes('purpose') || cell.includes('remark') ||
+          cell.includes('note') || cell.includes('comment') ||
+          clean.includes('justification') || clean.includes('requirementsfor') || clean.includes('requirementfor') ||
+          clean.includes('requiredfor')
+        ) {
+          tempJustCol = idx;
+          tempJustName = String(cleanedRows[i][idx] || 'Justification');
+        }
+        // 3. Material Description Column detection
+        else if (
+          cell.includes('desc') || cell.includes('item') || cell.includes('material') ||
+          cell.includes('particular') || cell.includes('product') || cell === 'name' ||
+          cell === 'items' || cell === 'materials'
+        ) {
+          tempDescCol = idx;
+        }
+        // 4. Unit Column detection
+        else if (cell.includes('unit') || cell.includes('uom') || cell.includes('measur')) {
+          tempUnitCol = idx;
+        }
+        // 5. Quantity Column detection
+        else if (
+          cell.includes('qty') || cell.includes('quant') || cell.includes('count') ||
+          cell.includes('total') || cell === 'pcs' || cell === 'nos'
+        ) {
+          tempQtyCol = idx;
+        }
+        // 6. Requester Name Column
+        else if (
+          (cell.includes('request') && (cell.includes('by') || cell.includes('name') || cell.includes('person') || cell.includes('user'))) ||
+          cell.includes('requester')
+        ) {
+          tempReqCol = idx;
+        }
+        // 7. Category / Department Column
+        else if (cell.includes('category') || cell.includes('dept') || cell.includes('department') || cell.includes('team')) {
+          tempCatCol = idx;
+        }
+      });
+
+      // Valid header recognized if it has a description column, or has (quantity + unit) or (justification + item)
+      if (tempDescCol !== -1 || (tempQtyCol !== -1 && tempUnitCol !== -1) || (tempEdfCol !== -1 && tempJustCol !== -1)) {
+        headerRowIdx = i;
+        edfColIdx = tempEdfCol;
+        descColIdx = tempDescCol !== -1 ? tempDescCol : (tempEdfCol === 0 ? 1 : 0);
+        unitColIdx = tempUnitCol;
+        qtyColIdx = tempQtyCol;
+        justificationColIdx = tempJustCol;
+        requesterColIdx = tempReqCol;
+        categoryColIdx = tempCatCol;
+        detectedEdfColName = tempEdfName;
+        detectedJustColName = tempJustName;
         break;
       }
     }
 
+    // Default fallback columns if no header was detected
+    if (headerRowIdx === -1) {
+      descColIdx = 0;
+      unitColIdx = 1;
+      qtyColIdx = 2;
+    }
+
     const dataRows = headerRowIdx >= 0 ? cleanedRows.slice(headerRowIdx + 1) : cleanedRows;
     const items: EDFItem[] = [];
+    const numbersFound: string[] = [];
+    const justificationsFound: string[] = [];
 
     dataRows.forEach((row) => {
       let desc = '';
       let unit = 'pcs';
       let qty = 1;
+      let just = '';
 
-      if (row.length === 1) {
-        desc = String(row[0] || '').trim();
-      } else {
-        desc = String(row[descColIdx] || '').trim();
-        if (row[unitColIdx] !== undefined) {
-          const rawUnit = String(row[unitColIdx] || '').trim();
-          if (rawUnit) unit = rawUnit;
+      // Check EDF/PDF Number column
+      if (edfColIdx >= 0 && row[edfColIdx] !== undefined) {
+        const val = String(row[edfColIdx] || '').trim();
+        if (val && !numbersFound.includes(val)) {
+          numbersFound.push(val);
         }
-        if (row[qtyColIdx] !== undefined) {
-          const rawQty = parseFloat(String(row[qtyColIdx] || '').replace(/[^0-9.]/g, ''));
-          if (!isNaN(rawQty) && rawQty > 0) {
-            qty = Math.round(rawQty);
+      }
+
+      // Check Material Description
+      if (descColIdx >= 0 && row[descColIdx] !== undefined) {
+        desc = String(row[descColIdx] || '').trim();
+      } else if (row.length === 1) {
+        desc = String(row[0] || '').trim();
+      }
+
+      // Check Unit
+      if (unitColIdx >= 0 && row[unitColIdx] !== undefined) {
+        const rawUnit = String(row[unitColIdx] || '').trim();
+        if (rawUnit) unit = rawUnit;
+      }
+
+      // Check Quantity
+      if (qtyColIdx >= 0 && row[qtyColIdx] !== undefined) {
+        const rawQty = parseFloat(String(row[qtyColIdx] || '').replace(/[^0-9.]/g, ''));
+        if (!isNaN(rawQty) && rawQty > 0) {
+          qty = Math.round(rawQty);
+        }
+      }
+
+      // Check Justification / Requirements For / Remarks
+      if (justificationColIdx >= 0 && row[justificationColIdx] !== undefined) {
+        const rawJust = String(row[justificationColIdx] || '').trim();
+        if (rawJust) {
+          just = rawJust;
+          if (!justificationsFound.includes(rawJust)) {
+            justificationsFound.push(rawJust);
           }
         }
+      }
+
+      // Check Requester in row if not yet set
+      if (requesterColIdx >= 0 && row[requesterColIdx] !== undefined && !metaRequester) {
+        const reqVal = String(row[requesterColIdx] || '').trim();
+        if (reqVal) metaRequester = reqVal;
+      }
+
+      // Check Category in row if not yet set
+      if (categoryColIdx >= 0 && row[categoryColIdx] !== undefined && !metaCategory) {
+        const catVal = String(row[categoryColIdx] || '').trim().toLowerCase();
+        const foundCat = categories.find((c) => c.name.toLowerCase() === catVal);
+        if (foundCat) metaCategory = foundCat.name;
       }
 
       if (desc) {
@@ -235,6 +458,8 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
           quantity: qty,
           unit: unit,
           status: 'Pending',
+          remarks: just || null,
+          justification: just || null,
         });
       }
     });
@@ -242,6 +467,57 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     if (items.length === 0) {
       setFileError('Could not find any material rows. Please verify your data.');
       return;
+    }
+
+    // 3. Resolve EDF/PDF Number
+    let finalDetectedNumber: string | null = null;
+    let detectedSource: 'detected' | 'ambiguous' | 'missing' = 'missing';
+
+    if (numbersFound.length === 1) {
+      finalDetectedNumber = numbersFound[0];
+      detectedSource = 'detected';
+      setDetectedColumnHeading(detectedEdfColName || 'PDF Number');
+      setAmbiguousNumbers([]);
+    } else if (numbersFound.length > 1) {
+      finalDetectedNumber = numbersFound[0];
+      detectedSource = 'ambiguous';
+      setDetectedColumnHeading(detectedEdfColName || 'PDF Number');
+      setAmbiguousNumbers(numbersFound);
+    } else if (metaEdfNumber) {
+      finalDetectedNumber = metaEdfNumber;
+      detectedSource = 'detected';
+      setDetectedColumnHeading(metaEdfHeading || 'Table Heading');
+      setAmbiguousNumbers([]);
+    } else {
+      detectedSource = 'missing';
+      setDetectedColumnHeading(null);
+      setAmbiguousNumbers([]);
+    }
+
+    if (finalDetectedNumber) {
+      setEdfNumber(finalDetectedNumber);
+    }
+    setEdfDetectionSource(detectedSource);
+    setIsNumberConfirmed(detectedSource === 'detected');
+
+    // 4. Resolve Remarks & Justification:
+    // Extract actual text from Justification / Requirements For and save to Remarks & Notes.
+    // NEVER insert automatic text such as "Imported from Excel table".
+    // If justification is blank, leave Remarks & Notes blank.
+    if (justificationsFound.length > 0) {
+      const combinedJustification = justificationsFound.join(' ; ');
+      setRemarks(combinedJustification);
+    } else {
+      setRemarks('');
+    }
+
+    // Auto-select category if detected
+    if (metaCategory) {
+      setSelectedCategory(metaCategory);
+    }
+    // Auto-fill requester if detected
+    if (metaRequester) {
+      setRequesterName(metaRequester);
     }
 
     setExtractedItems(items);
@@ -326,7 +602,26 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
         const hasAnyVal = Object.values(row).some((v) => String(v).trim() !== '');
         if (!hasAnyVal) continue;
 
-        let rawEdfNum = findValue(row, ['edfnumber', 'edf#', 'edf', 'edfid', 'demandform#', 'form#', 'number', 'ref']);
+        let rawEdfNum = findValue(row, [
+          'pdfnumber',
+          'pdfno',
+          'pdf#',
+          'pdf',
+          'pdfnum',
+          'edfnumber',
+          'edfno',
+          'edf#',
+          'edf',
+          'edfid',
+          'demandform#',
+          'demandformno',
+          'demandformnumber',
+          'form#',
+          'formno',
+          'formnumber',
+          'number',
+          'ref',
+        ]);
         if (!rawEdfNum) {
           rawEdfNum = `EDF-CSV-${String(autoCounter).padStart(3, '0')}`;
           autoCounter++;
@@ -338,7 +633,20 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
         const requiredDateRaw = findValue(row, ['requireddate', 'duedate', 'deadline', 'deliverydate', 'required']);
         const statusRaw = findValue(row, ['status', 'edfstatus', 'state']);
         const progressRaw = findValue(row, ['itemreceivingstatus', 'receivingstatus', 'itemstatus', 'receivingprogress', 'progress']);
-        const remarks = findValue(row, ['remarks', 'notes', 'comments', 'remark', 'note']);
+        const remarks = findValue(row, [
+          'justification',
+          'justifications',
+          'requirementsfor',
+          'requirementfor',
+          'requiredfor',
+          'reason',
+          'purpose',
+          'remarks',
+          'notes',
+          'comments',
+          'remark',
+          'note',
+        ]);
         const materialSummary = findValue(row, ['itemdescription', 'materialdetails', 'materialsummary', 'materiallist', 'item', 'material', 'description', 'materials']);
         const quantityRaw = findValue(row, ['quantity', 'qty', 'count', 'amount']);
         const unitRaw = findValue(row, ['unit', 'uom', 'measurement']);
@@ -397,6 +705,8 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
               quantity: itemQty,
               unit: itemUnit,
               status: isItemReceived ? 'Received' : 'Pending',
+              remarks: remarks || '',
+              justification: remarks || '',
             });
           }
         } else if (materialSummary) {
@@ -408,6 +718,8 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
             quantity: qty,
             unit: unit,
             status: isItemReceived ? 'Received' : 'Pending',
+            remarks: remarks || '',
+            justification: remarks || '',
           });
         }
       }
@@ -532,7 +844,69 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     setExtractedItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Create single EDF in Table/Excel mode
+  // Execute single EDF submission
+  const executeSubmitEDF = async (finalNumber?: string) => {
+    const targetEdfNumber = (finalNumber || edfNumber).trim();
+    const validItems = extractedItems.filter((i) => i.itemDescription && i.itemDescription.trim());
+
+    setIsSaving(true);
+    setValidationErrors({});
+
+    const summary = validItems
+      .map((i) => `${i.itemDescription} (${i.quantity} ${i.unit})`)
+      .slice(0, 3)
+      .join(', ') + (validItems.length > 3 ? ` + ${validItems.length - 3} more` : '');
+    const totalQty = validItems.reduce((acc, i) => acc + (i.quantity || 1), 0);
+
+    const issIso = new Date(issueDate).toISOString();
+    const reqIso = new Date(requiredDate).toISOString();
+
+    const payload = {
+      edfNumber: targetEdfNumber,
+      requesterName: requesterName.trim(),
+      category: selectedCategory.trim(),
+      issueDate: issIso,
+      requiredDate: reqIso,
+      materialList: summary,
+      quantity: totalQty,
+      unit: validItems[0]?.unit || 'pcs',
+      // If justification was blank, leave remarks & notes blank (never insert "Imported from Excel")
+      remarks: remarks.trim() || null,
+      items: validItems.map((i) => ({
+        itemDescription: i.itemDescription.trim(),
+        quantity: i.quantity || 1,
+        unit: i.unit.trim() || 'pcs',
+        status: 'Pending',
+        remarks: i.remarks?.trim() || i.justification?.trim() || null,
+        justification: i.justification?.trim() || i.remarks?.trim() || null,
+      })),
+    };
+
+    const success = await onSaveEDF(payload);
+    setIsSaving(false);
+    setShowNumberConfirmModal(false);
+    setShowDuplicateModal(false);
+
+    if (success) {
+      fetch('/api/activity-logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('edf_auth_token')}`,
+        },
+        body: JSON.stringify({
+          action: `${payload.edfNumber} Imported from Excel`,
+          edfNumber: payload.edfNumber,
+        }),
+      }).catch(console.error);
+
+      if (onImportSuccess) {
+        onImportSuccess();
+      }
+    }
+  };
+
+  // Create single EDF in Table/Excel mode with duplicate prevention & missing number confirmation
   const handleCreateEDF = async () => {
     const errors: Record<string, string> = {};
 
@@ -553,51 +927,20 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     }
 
     setValidationErrors({});
-    setIsSaving(true);
 
-    const summary = validItems
-      .map((i) => `${i.itemDescription} (${i.quantity} ${i.unit})`)
-      .slice(0, 3)
-      .join(', ') + (validItems.length > 3 ? ` + ${validItems.length - 3} more` : '');
-    const totalQty = validItems.reduce((acc, i) => acc + (i.quantity || 1), 0);
-
-    const issIso = new Date(issueDate).toISOString();
-    const reqIso = new Date(requiredDate).toISOString();
-
-    const payload = {
-      edfNumber: edfNumber.trim(),
-      requesterName: requesterName.trim(),
-      category: selectedCategory.trim(),
-      issueDate: issIso,
-      requiredDate: reqIso,
-      materialList: summary,
-      quantity: totalQty,
-      unit: validItems[0]?.unit || 'pcs',
-      remarks: remarks.trim() || null,
-      items: validItems.map((i) => ({
-        itemDescription: i.itemDescription.trim(),
-        quantity: i.quantity || 1,
-        unit: i.unit.trim() || 'pcs',
-        status: 'Pending',
-      })),
-    };
-
-    const success = await onSaveEDF(payload);
-    setIsSaving(false);
-
-    if (success) {
-      fetch('/api/activity-logs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('edf_auth_token')}`,
-        },
-        body: JSON.stringify({
-          action: `${payload.edfNumber} Imported from Excel`,
-          edfNumber: payload.edfNumber,
-        }),
-      }).catch(console.error);
+    // 1. DUPLICATE SAFETY CHECK: Prevent accidental duplicate EDFs or overwriting existing records
+    if (duplicateExistingEdf) {
+      setShowDuplicateModal(true);
+      return;
     }
+
+    // 2. AMBIGUOUS OR MISSING NUMBER CONFIRMATION: Ask for confirmation before submission
+    if (!isNumberConfirmed && (edfDetectionSource === 'missing' || edfDetectionSource === 'ambiguous')) {
+      setShowNumberConfirmModal(true);
+      return;
+    }
+
+    await executeSubmitEDF();
   };
 
   // Filtered CSV records for review screen
@@ -1101,6 +1444,120 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
         ) : (
           /* STEP 2: Review extracted items & enter Mandatory EDF-level details */
           <div className="space-y-6">
+            {/* 1. AUTOMATIC EDF/PDF NUMBER DETECTION STATUS BANNER */}
+            {edfDetectionSource === 'detected' && (
+              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>
+                    Auto-detected number <strong>&quot;{edfNumber}&quot;</strong> from heading{' '}
+                    <strong>&quot;{detectedColumnHeading}&quot;</strong>.
+                  </span>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
+                  Detected from Table
+                </span>
+              </div>
+            )}
+
+            {edfDetectionSource === 'ambiguous' && (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="font-extrabold">
+                      Multiple PDF/EDF numbers detected in table rows. Please confirm the number to use:
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-700">
+                    Confirmation Required
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {ambiguousNumbers.map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => {
+                        setEdfNumber(num);
+                        setIsNumberConfirmed(true);
+                        setValidationErrors((prev) => ({ ...prev, edfNumber: '' }));
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-mono font-bold border transition-all cursor-pointer ${
+                        edfNumber === num
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-800 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {num} {edfNumber === num && '✓ Active'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {edfDetectionSource === 'missing' && (
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <Info className="w-4 h-4 text-indigo-500 shrink-0" />
+                  <span>
+                    No explicit PDF/EDF number was detected under headings like <em>&quot;PDF Number&quot;</em> or <em>&quot;EDF No.&quot;</em>. Assigned sequential number <strong>&quot;{edfNumber}&quot;</strong>.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsNumberConfirmed(true)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer self-start sm:self-auto shrink-0 ${
+                    isNumberConfirmed
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+                  }`}
+                >
+                  {isNumberConfirmed ? '✓ Number Confirmed' : 'Confirm this Number'}
+                </button>
+              </div>
+            )}
+
+            {/* 2. PREVENT ACCIDENTAL DUPLICATES OR OVERWRITING EXISTING RECORDS */}
+            {duplicateExistingEdf && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border-2 border-rose-300 dark:border-rose-800 text-xs text-rose-900 dark:text-rose-200 space-y-3 shadow-sm animate-in fade-in">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-black text-sm block">
+                      Duplicate EDF Number Warning: &quot;{edfNumber}&quot; Already Exists!
+                    </span>
+                    <p className="mt-1 text-rose-700 dark:text-rose-300 leading-relaxed">
+                      An existing Demand Form with this number was created for{' '}
+                      <strong>{duplicateExistingEdf.requesterName}</strong> ({duplicateExistingEdf.category}) with current status{' '}
+                      <strong>{duplicateExistingEdf.status}</strong>.
+                      To protect existing records from being overwritten or duplicated accidentally, please use a unique number.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rose-200 dark:border-rose-800">
+                  <button
+                    type="button"
+                    onClick={handleAssignNextUniqueNumber}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-xs cursor-pointer transition-all"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Assign Next Unique Number</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAppendSuffix}
+                    className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-rose-100 text-rose-800 dark:text-rose-200 border border-rose-300 dark:border-rose-700 font-bold text-xs cursor-pointer transition-all"
+                  >
+                    Append Suffix (-1)
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* MANDATORY EDF-LEVEL INFORMATION CARD */}
             <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1165,20 +1622,53 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
                 {/* EDF Number */}
                 <div>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    <Hash className="w-3.5 h-3.5 text-slate-400" />
-                    <span>2. EDF Number</span> <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <Hash className="w-3.5 h-3.5 text-slate-400" />
+                      <span>2. EDF Number</span> <span className="text-rose-500">*</span>
+                    </label>
+                    {edfDetectionSource === 'detected' && (
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        Auto-detected
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={edfNumber}
-                    onChange={(e) => setEdfNumber(e.target.value)}
-                    placeholder="e.g. EDF-2026-001"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    onChange={(e) => {
+                      setEdfNumber(e.target.value);
+                      setIsNumberConfirmed(true);
+                      if (validationErrors.edfNumber) {
+                        setValidationErrors((prev) => ({ ...prev, edfNumber: '' }));
+                      }
+                    }}
+                    placeholder="e.g. EDF-2026-001 or 1042"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-xs font-bold focus:outline-none focus:ring-2 ${
+                      duplicateExistingEdf
+                        ? 'border-rose-400 dark:border-rose-600 ring-2 ring-rose-500/20'
+                        : 'border-slate-200 dark:border-slate-700 focus:ring-indigo-500'
+                    }`}
                   />
                   {validationErrors.edfNumber && (
                     <p className="text-[11px] text-rose-500 mt-1 font-semibold">{validationErrors.edfNumber}</p>
                   )}
+                  <div className="flex items-center justify-between mt-1 text-[10px]">
+                    {duplicateExistingEdf ? (
+                      <span className="text-rose-600 font-bold">Duplicate record detected</span>
+                    ) : (
+                      <span className="text-slate-400">
+                        {detectedColumnHeading ? `From: ${detectedColumnHeading}` : 'Unique identifier'}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleAssignNextUniqueNumber}
+                      className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer"
+                    >
+                      New Number
+                    </button>
+                  </div>
                 </div>
 
                 {/* Requester Name */}
@@ -1190,7 +1680,12 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                   <RequesterDropdown
                     value={requesterName}
                     category={selectedCategory}
-                    onChange={(val) => setRequesterName(val)}
+                    onChange={(val) => {
+                      setRequesterName(val);
+                      if (validationErrors.requesterName) {
+                        setValidationErrors((prev) => ({ ...prev, requesterName: '' }));
+                      }
+                    }}
                     placeholder="Select requester name..."
                   />
                   {validationErrors.requesterName && (
@@ -1232,23 +1727,42 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                   )}
                 </div>
 
-                {/* Remarks - Spans full width */}
+                {/* Remarks & Notes (Never insert "Imported from Excel") */}
                 <div className="sm:col-span-2 lg:col-span-4">
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                    <span>Remarks & Notes</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span>Remarks & Notes</span>
+                      {remarks && (
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                          (Extracted from Justification / Requirements For)
+                        </span>
+                      )}
+                    </label>
+                    {remarks && (
+                      <button
+                        type="button"
+                        onClick={() => setRemarks('')}
+                        className="text-[10px] text-slate-400 hover:text-rose-500 font-semibold cursor-pointer"
+                      >
+                        Clear Remarks
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
-                    placeholder="Enter any coordinator remarks or delivery instructions..."
+                    placeholder="Leave blank if no justification or remarks required..."
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Exact text from columns like <em>Justification</em> or <em>Requirements For</em> is saved here. If blank in your sheet, this field remains blank.
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* EXTRACTED MATERIAL ITEMS PREVIEW */}
+            {/* EXTRACTED MATERIAL ITEMS PREVIEW - PRESERVE EACH MATERIAL ROW */}
             <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
@@ -1259,7 +1773,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Each row from your sheet is stored individually for exact partial item receiving.
+                    Every row from your sheet is preserved separately with its individual description, unit, quantity, and row justification.
                   </p>
                 </div>
 
@@ -1273,18 +1787,32 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                 </button>
               </div>
 
+              {/* Column Header Guide */}
+              <div className="hidden lg:grid lg:grid-cols-12 gap-3 px-3 pb-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <span className="col-span-1">#</span>
+                <span className="col-span-4">Item Description / Material</span>
+                <span className="col-span-3">Row Justification / Requirements For</span>
+                <span className="col-span-2">Unit</span>
+                <span className="col-span-1">Quantity</span>
+                <span className="col-span-1 text-right">Action</span>
+              </div>
+
               {/* Items List */}
-              <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+              <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
                 {extractedItems.map((item, idx) => (
                   <div
                     key={idx}
-                    className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+                    className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 flex flex-col lg:grid lg:grid-cols-12 gap-3 items-stretch lg:items-center"
                   >
-                    <span className="text-xs font-mono font-bold text-slate-400 w-6 shrink-0">
+                    <span className="lg:col-span-1 text-xs font-mono font-bold text-slate-400">
                       #{idx + 1}
                     </span>
 
-                    <div className="flex-1 min-w-0">
+                    {/* Description */}
+                    <div className="lg:col-span-4 min-w-0">
+                      <label className="block lg:hidden text-[10px] font-bold text-slate-400 mb-1">
+                        Item Description / Material
+                      </label>
                       <input
                         type="text"
                         value={item.itemDescription}
@@ -1294,38 +1822,65 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
-                      <div className="w-24">
-                        <input
-                          type="text"
-                          value={item.unit}
-                          onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
-                          placeholder="Unit"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
-                        />
-                      </div>
-                      <div className="w-20">
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            handleItemChange(idx, 'quantity', parseInt(e.target.value, 10) || 1)
-                          }
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-xs font-bold"
-                        />
-                      </div>
+                    {/* Row Justification / Requirements For */}
+                    <div className="lg:col-span-3 min-w-0">
+                      <label className="block lg:hidden text-[10px] font-bold text-slate-400 mb-1">
+                        Justification / Requirements For
+                      </label>
+                      <input
+                        type="text"
+                        value={item.justification || item.remarks || ''}
+                        onChange={(e) => {
+                          handleItemChange(idx, 'justification', e.target.value);
+                          handleItemChange(idx, 'remarks', e.target.value);
+                        }}
+                        placeholder="Row justification (optional)"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                      />
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(idx)}
-                      disabled={extractedItems.length <= 1}
-                      className="p-2 text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer self-end sm:self-auto"
-                      title="Remove row"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {/* Unit */}
+                    <div className="lg:col-span-2">
+                      <label className="block lg:hidden text-[10px] font-bold text-slate-400 mb-1">
+                        Unit
+                      </label>
+                      <input
+                        type="text"
+                        value={item.unit}
+                        onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                        placeholder="Unit"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs"
+                      />
+                    </div>
+
+                    {/* Quantity */}
+                    <div className="lg:col-span-1">
+                      <label className="block lg:hidden text-[10px] font-bold text-slate-400 mb-1">
+                        Quantity
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          handleItemChange(idx, 'quantity', parseInt(e.target.value, 10) || 1)
+                        }
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-mono text-xs font-bold"
+                      />
+                    </div>
+
+                    {/* Delete row */}
+                    <div className="lg:col-span-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(idx)}
+                        disabled={extractedItems.length <= 1}
+                        className="p-2 text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer rounded-lg hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors"
+                        title="Remove row"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1344,10 +1899,19 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
                   type="button"
                   onClick={handleCreateEDF}
                   disabled={isSaving}
-                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 transition-all disabled:opacity-50 cursor-pointer order-1 sm:order-2"
+                  className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-xs shadow-lg transition-all cursor-pointer order-1 sm:order-2 ${
+                    duplicateExistingEdf
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-500/25'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/25 disabled:opacity-50'
+                  }`}
                 >
                   {isSaving ? (
                     <span>Saving Demand Form...</span>
+                  ) : duplicateExistingEdf ? (
+                    <>
+                      <AlertCircle className="w-4 h-4" />
+                      <span>Resolve Duplicate Number</span>
+                    </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
@@ -1359,6 +1923,122 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
             </div>
           </div>
         )
+      )}
+
+      {/* CONFIRMATION MODAL: MISSING OR AMBIGUOUS EDF/PDF NUMBER */}
+      {showNumberConfirmModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-100">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                  Confirm EDF Number
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                  {edfDetectionSource === 'missing'
+                    ? 'No explicit PDF Number or EDF No. was found in your pasted data.'
+                    : `Multiple candidate numbers were detected (${ambiguousNumbers.join(', ')}).`}
+                </p>
+                <div className="mt-2.5 p-3 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-400 block font-semibold">Selected EDF Number:</span>
+                  <span className="font-mono text-sm font-extrabold text-indigo-600 dark:text-indigo-400">
+                    {edfNumber}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5">
+                  Do you want to submit with this EDF Number or edit it first?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowNumberConfirmModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+              >
+                Edit Number
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsNumberConfirmed(true);
+                  executeSubmitEDF(edfNumber);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Confirm &amp; Submit</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OVERWRITE SAFETY MODAL: DUPLICATE EDF NUMBER PREVENTION */}
+      {showDuplicateModal && duplicateExistingEdf && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-100">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-rose-300 dark:border-rose-900 p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-rose-900 dark:text-rose-200">
+                  Prevent Accidental Overwrite
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                  An EDF with number <strong className="font-mono text-slate-900 dark:text-white">&quot;{edfNumber}&quot;</strong> already exists in the system:
+                </p>
+                <div className="mt-2 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Requester:</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{duplicateExistingEdf.requesterName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Team:</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{duplicateExistingEdf.category}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Status:</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{duplicateExistingEdf.status}</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-rose-600 dark:text-rose-400 font-bold mt-2">
+                  To protect existing data from accidental overwriting, please choose a unique number.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={handleAssignNextUniqueNumber}
+                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Assign Next Sequential Number</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleAppendSuffix}
+                className="w-full px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+              >
+                Append Suffix (-1)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDuplicateModal(false)}
+                className="w-full px-4 py-1.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                Cancel &amp; Edit Manually
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
