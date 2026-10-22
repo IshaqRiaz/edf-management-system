@@ -995,7 +995,10 @@ app.post('/api/edfs', authenticate, requireAdmin, async (req: AuthRequest, res: 
       await db.insert(requesters).values({ name: requesterName.trim() }).onConflictDoNothing().catch(() => {});
     }
 
-    await logActivity(`${created.edfNumber} Created`, created.edfNumber, req);
+    const edfPrefix = created.edfNumber.toUpperCase().startsWith('EDF')
+      ? created.edfNumber
+      : `EDF ${created.edfNumber}`;
+    await logActivity(`${edfPrefix} Created`, created.edfNumber, req);
     await recordStatusHistory(
       created.id,
       created.edfNumber,
@@ -1169,7 +1172,10 @@ app.post('/api/edfs/batch-import-csv', authenticate, requireAdmin, async (req: A
           await db.insert(requesters).values({ name: requesterName }).onConflictDoNothing().catch(() => {});
         }
 
-        await logActivity(`${edfNumber} Created via CSV Import`, edfNumber, req);
+        const edfPrefix = edfNumber.toUpperCase().startsWith('EDF')
+          ? edfNumber
+          : `EDF ${edfNumber}`;
+        await logActivity(`${edfPrefix} Created`, edfNumber, req);
         await recordStatusHistory(
           created.id,
           created.edfNumber,
@@ -1638,10 +1644,58 @@ app.post('/api/edfs/bulk-action', authenticate, requireAdmin, async (req: AuthRe
   }
 });
 
+// Helper to deduplicate activity logs, preventing duplicate entries for creation/import events
+// while strictly preserving all genuine, separate activities (item receiving, status changes, deletions, etc.)
+function deduplicateActivityLogs<T extends { id?: number; action: string; edfNumber?: string | null; createdAt?: any; userName?: string | null; userPhone?: string | null }>(rawLogs: T[]): T[] {
+  const result: T[] = [];
+  const seenCreationByEdf = new Set<string>();
+
+  for (const log of rawLogs) {
+    const act = (log.action || '').trim();
+    const actLower = act.toLowerCase();
+    const isCreation = actLower.includes('creat') || actLower.includes('import');
+
+    // Extract normalized EDF number if present
+    let edfNum = (log.edfNumber || '').trim();
+    if (!edfNum) {
+      const match = act.match(/\b(?:EDF\s*[-#]?\s*|\b)([A-Za-z0-9_-]+)\b/i);
+      if (match && match[1]) {
+        edfNum = match[1];
+      }
+    }
+    const edfKey = edfNum.toLowerCase().replace(/^(edf\s*[-#]?\s*)/, '');
+
+    if (isCreation && edfKey) {
+      // If we've already included a creation event for this EDF, skip duplicate
+      if (seenCreationByEdf.has(edfKey)) {
+        continue;
+      }
+      seenCreationByEdf.add(edfKey);
+
+      // Normalize action title so "EDF 2980 Imported from Excel" -> "EDF 2980 Created"
+      const prefix = (log.edfNumber || edfNum).toUpperCase().startsWith('EDF')
+        ? (log.edfNumber || edfNum)
+        : `EDF ${log.edfNumber || edfNum}`;
+      const cleanAction = `${prefix} Created`;
+
+      result.push({
+        ...log,
+        action: cleanAction,
+      });
+    } else {
+      // Genuine separate activities preserved intact (receiving items, status changes, deletions, etc.)
+      result.push(log);
+    }
+  }
+
+  return result;
+}
+
 // Activity logs endpoint (Recent Activity widget)
 app.get('/api/activity-logs', authenticate, async (_req: Request, res: Response) => {
   try {
-    const logs = await db.select().from(activityLogs).orderBy(desc(activityLogs.id)).limit(10);
+    const rawLogs = await db.select().from(activityLogs).orderBy(desc(activityLogs.id)).limit(30);
+    const logs = deduplicateActivityLogs(rawLogs).slice(0, 10);
     res.json(logs);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch activity logs' });
@@ -1651,8 +1705,29 @@ app.get('/api/activity-logs', authenticate, async (_req: Request, res: Response)
 // Log custom user action (e.g. User Imported Excel)
 app.post('/api/activity-logs', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { action, edfNumber } = req.body;
+    let { action, edfNumber } = req.body;
     if (!action) return res.status(400).json({ error: 'Action is required' });
+
+    // Normalize any "Imported from Excel" action into the standard "EDF [Number] Created"
+    if (action.toLowerCase().includes('imported from excel') && edfNumber) {
+      const edfPrefix = edfNumber.toUpperCase().startsWith('EDF') ? edfNumber : `EDF ${edfNumber}`;
+      action = `${edfPrefix} Created`;
+    }
+
+    // Skip consecutive identical creation log
+    const [latest] = await db
+      .select()
+      .from(activityLogs)
+      .orderBy(desc(activityLogs.id))
+      .limit(1);
+
+    if (
+      latest &&
+      latest.action === action &&
+      latest.edfNumber === (edfNumber || null)
+    ) {
+      return res.json({ success: true, message: 'Duplicate log skipped' });
+    }
 
     await logActivity(action, edfNumber, req);
     res.json({ success: true });
@@ -1718,8 +1793,9 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
     const received = list.filter((e) => e.status === 'Received').length;
     const overdue = list.filter((e) => e.isOverdue).length;
 
-    // Recent activity logs (up to 30 for filtering)
-    const recentActivity = await db.select().from(activityLogs).orderBy(desc(activityLogs.id)).limit(30);
+    // Recent activity logs (deduplicated against duplicate creation events, preserving all genuine activities)
+    const rawRecentActivity = await db.select().from(activityLogs).orderBy(desc(activityLogs.id)).limit(50);
+    const recentActivity = deduplicateActivityLogs(rawRecentActivity).slice(0, 30);
 
     // 7-day creation history
     const creationHistory7Days = [];

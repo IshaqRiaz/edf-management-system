@@ -89,6 +89,78 @@ const CustomChartTooltip = ({ active, payload }: any) => {
   return null;
 };
 
+// Helper to deduplicate activity logs, preventing duplicate entries for creation/import events
+// while strictly preserving all genuine, separate activities (item receiving, status changes, deletions, etc.)
+export function deduplicateActivityLogs<T extends { id?: number; action: string; edfNumber?: string | null; createdAt?: any; userName?: string | null; userPhone?: string | null }>(rawLogs: T[]): T[] {
+  const result: T[] = [];
+  const seenCreationByEdf = new Set<string>();
+
+  for (const log of rawLogs) {
+    const act = (log.action || '').trim();
+    const actLower = act.toLowerCase();
+    const isCreation = actLower.includes('creat') || actLower.includes('import');
+
+    // Extract normalized EDF number if present
+    let edfNum = (log.edfNumber || '').trim();
+    if (!edfNum) {
+      const match = act.match(/\b(?:EDF\s*[-#]?\s*|\b)([A-Za-z0-9_-]+)\b/i);
+      if (match && match[1]) {
+        edfNum = match[1];
+      }
+    }
+    const edfKey = edfNum.toLowerCase().replace(/^(edf\s*[-#]?\s*)/, '');
+
+    if (isCreation && edfKey) {
+      // If we've already included a creation event for this EDF, skip duplicate
+      if (seenCreationByEdf.has(edfKey)) {
+        continue;
+      }
+      seenCreationByEdf.add(edfKey);
+
+      // Normalize action title so "EDF 2980 Imported from Excel" -> "EDF 2980 Created"
+      const prefix = (log.edfNumber || edfNum).toUpperCase().startsWith('EDF')
+        ? (log.edfNumber || edfNum)
+        : `EDF ${log.edfNumber || edfNum}`;
+      const cleanAction = `${prefix} Created`;
+
+      result.push({
+        ...log,
+        action: cleanAction,
+      });
+    } else {
+      // Genuine separate activities preserved intact (receiving items, status changes, deletions, etc.)
+      result.push(log);
+    }
+  }
+
+  return result;
+}
+
+export const formatUserSubtitle = (
+  rawName?: string | null,
+  rawPhone?: string | null,
+  isCreation = false
+): string => {
+  const fallback = 'Admin / Visitor';
+  let text = (rawName || rawPhone || '').trim();
+  if (!text || text.toLowerCase() === 'system') {
+    return isCreation ? `Created by: ${fallback}` : `Action by: ${fallback}`;
+  }
+
+  // Handle format like "Coordinator Admin [Admin]" -> "Coordinator Admin / Admin"
+  const bracketMatch = text.match(/^(.*?)\s*\[(Admin|Visitor|Viewer)\]$/i);
+  if (bracketMatch) {
+    const mainName = bracketMatch[1].trim();
+    const role = bracketMatch[2].charAt(0).toUpperCase() + bracketMatch[2].slice(1).toLowerCase();
+    text = mainName ? `${mainName} / ${role}` : role;
+  }
+
+  if (isCreation) {
+    return text.toLowerCase().startsWith('created by:') ? text : `Created by: ${text}`;
+  }
+  return text.toLowerCase().startsWith('action by:') ? text : `Action by: ${text}`;
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({
   stats,
   edfs = [],
@@ -126,22 +198,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return 'other';
   };
 
+  // Deduplicate activities so duplicate creation/import events are collapsed into a single "EDF [Number] Created"
+  const deduplicatedActivity = useMemo(() => {
+    return deduplicateActivityLogs(stats.recentActivity || []);
+  }, [stats.recentActivity]);
+
   const filteredActivity = useMemo(() => {
-    if (activityFilter === 'all') return stats.recentActivity;
-    return stats.recentActivity.filter(
+    if (activityFilter === 'all') return deduplicatedActivity;
+    return deduplicatedActivity.filter(
       (log) => getActivityCategory(log.action) === activityFilter
     );
-  }, [stats.recentActivity, activityFilter]);
+  }, [deduplicatedActivity, activityFilter]);
 
   const activityCounts = useMemo(() => {
     const counts = {
-      all: stats.recentActivity.length,
+      all: deduplicatedActivity.length,
       creation: 0,
       update: 0,
       status: 0,
       deletion: 0,
     };
-    stats.recentActivity.forEach((log) => {
+    deduplicatedActivity.forEach((log) => {
       const cat = getActivityCategory(log.action);
       if (cat === 'creation') counts.creation++;
       else if (cat === 'update') counts.update++;
@@ -149,7 +226,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       else if (cat === 'deletion') counts.deletion++;
     });
     return counts;
-  }, [stats.recentActivity]);
+  }, [deduplicatedActivity]);
 
   // Count partially received EDFs to recognize partial receiving in dashboard
   const partiallyReceivedCount = useMemo(() => {
@@ -1277,17 +1354,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1">
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-1 flex-wrap">
                           {log.edfNumber && (
-                            <span className="font-mono font-bold text-[10px] px-1.5 py-0.2 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            <span className="font-mono font-bold text-[10px] px-1.5 py-0.2 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
                               {log.edfNumber}
                             </span>
                           )}
-                          <span className="font-medium text-slate-600 dark:text-slate-300">
-                            {log.userName || log.userPhone || 'System'}
+                          <span className="font-semibold text-slate-600 dark:text-slate-300">
+                            {formatUserSubtitle(log.userName, log.userPhone, cat === 'creation')}
                           </span>
-                          <span>•</span>
-                          <span>{dateStr}</span>
+                          <span className="text-slate-300 dark:text-slate-600">•</span>
+                          <span className="shrink-0">{dateStr}</span>
                         </div>
                       </div>
                     </div>

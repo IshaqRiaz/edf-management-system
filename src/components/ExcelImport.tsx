@@ -888,18 +888,6 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     setShowDuplicateModal(false);
 
     if (success) {
-      fetch('/api/activity-logs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('edf_auth_token')}`,
-        },
-        body: JSON.stringify({
-          action: `${payload.edfNumber} Imported from Excel`,
-          edfNumber: payload.edfNumber,
-        }),
-      }).catch(console.error);
-
       if (onImportSuccess) {
         onImportSuccess();
       }
