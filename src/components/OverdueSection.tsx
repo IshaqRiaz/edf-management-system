@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { EDF } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
+import { exportEDFsToMultiRowCSV } from '../utils/csvExport.ts';
 import {
   AlertOctagon,
   Clock,
@@ -11,6 +12,8 @@ import {
   ArrowLeft,
   AlertTriangle,
   FileSpreadsheet,
+  Download,
+  Check,
 } from 'lucide-react';
 
 interface OverdueSectionProps {
@@ -60,13 +63,26 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="px-3.5 py-1.5 rounded-xl bg-white text-rose-700 font-extrabold text-xs shadow-md text-center">
               <span className="text-lg font-black">{overdueEdfs.length}</span>
               <span className="block text-[10px] font-bold text-rose-600">
                 Overdue Forms
               </span>
             </div>
+
+            <button
+              onClick={() => {
+                if (overdueEdfs.length === 0) return;
+                exportEDFsToMultiRowCSV(overdueEdfs, 'Overdue_EDF');
+              }}
+              disabled={overdueEdfs.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-rose-700 hover:bg-rose-50 font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
+              title="Export all Overdue EDF records with individual material rows to CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export Overdue CSV</span>
+            </button>
 
             <button
               onClick={onBackToDashboard}

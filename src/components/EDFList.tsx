@@ -3,6 +3,8 @@ import { EDF, Category, EDFItem } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
 import { HighlightText } from './HighlightText.tsx';
 import { ReceivingProgressBar } from './ReceivingProgressBar.tsx';
+import { BarcodeScannerModal } from './BarcodeScannerModal.tsx';
+import { exportEDFsToMultiRowCSV } from '../utils/csvExport.ts';
 import { useTheme } from '../context/ThemeContext.tsx';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
 import {
@@ -35,6 +37,8 @@ import {
   Undo2,
   AlertCircle,
   Loader2,
+  Scan,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export const isDueWithin24Hours = (requiredDate: string | Date, status?: string): boolean => {
@@ -100,6 +104,14 @@ export const EDFList: React.FC<EDFListProps> = ({
       setLocalSearch(query);
     }
   };
+  type EdfTabType = 'Total' | 'Pending' | 'Received' | 'Overdue';
+  const [activeTab, setActiveTab] = useState<EdfTabType>(() => {
+    if (initialOverdueOnly || initialStatus.toLowerCase() === 'overdue') return 'Overdue';
+    if (initialStatus.toLowerCase() === 'received') return 'Received';
+    if (initialStatus.toLowerCase() === 'pending' || initialStatus.toLowerCase() === 'partially received') return 'Pending';
+    return 'Total';
+  });
+
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
   const [selectedStatus, setSelectedStatus] = useState<string>(initialStatus);
   const [overdueOnly, setOverdueOnly] = useState<boolean>(initialOverdueOnly);
@@ -112,6 +124,128 @@ export const EDFList: React.FC<EDFListProps> = ({
   const [isReceivingItems, setIsReceivingItems] = useState(false);
   const [undoConfirmItem, setUndoConfirmItem] = useState<{ edfId: number; item: EDFItem } | null>(null);
   const [isUndoingItem, setIsUndoingItem] = useState(false);
+
+  // QR / Barcode Scanner Modal & Export notice state
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+  // Tab switching handler
+  const handleSwitchTab = (tab: EdfTabType) => {
+    setActiveTab(tab);
+    if (tab === 'Total') {
+      setSelectedStatus('All');
+      setOverdueOnly(false);
+    } else if (tab === 'Pending') {
+      setSelectedStatus('Pending');
+      setOverdueOnly(false);
+    } else if (tab === 'Received') {
+      setSelectedStatus('Received');
+      setOverdueOnly(false);
+    } else if (tab === 'Overdue') {
+      setSelectedStatus('Overdue');
+      setOverdueOnly(true);
+    }
+  };
+
+  // Tab counts based on all records (or category if filtered)
+  const tabCounts = useMemo(() => {
+    const now = Date.now();
+    let total = 0;
+    let pending = 0;
+    let received = 0;
+    let overdue = 0;
+
+    for (const item of edfs) {
+      if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
+        continue;
+      }
+      total++;
+      const isPast = new Date(item.requiredDate).getTime() < now;
+      const rawItems = item.items || [];
+      const totalItems = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+      const receivedItems = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+      const isItemReceived = item.status === 'Received' || (receivedItems >= totalItems && totalItems > 0);
+      const isItemOverdue = !isItemReceived && (item.status === 'Overdue' || item.isOverdue || isPast);
+
+      if (isItemReceived) {
+        received++;
+      } else if (isItemOverdue) {
+        overdue++;
+        pending++;
+      } else {
+        pending++;
+      }
+    }
+
+    return { total, pending, received, overdue };
+  }, [edfs, selectedCategory]);
+
+  // Retrieve all records for a specific tab (respects category, search, and date filters)
+  const getTabRecords = (tab: EdfTabType): EDF[] => {
+    const now = Date.now();
+    return edfs.filter((item) => {
+      // Category filter
+      if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
+        return false;
+      }
+      // Search filter
+      if (search.trim()) {
+        const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
+        const matchesAll = tokens.every((token) => {
+          return (
+            checkStr(item.edfNumber).includes(token) ||
+            checkStr(item.requesterName).includes(token) ||
+            checkStr(item.category).includes(token) ||
+            checkStr(item.materialList).includes(token) ||
+            checkStr(item.remarks).includes(token) ||
+            item.items?.some((it) => checkStr(it.itemDescription).includes(token))
+          );
+        });
+        if (!matchesAll) return false;
+      }
+      // Date filter
+      if (dateFilter !== 'all') {
+        const itemDate = new Date(item.issueDate);
+        const currentDate = new Date();
+        if (dateFilter === 'today' && itemDate.toDateString() !== currentDate.toDateString()) return false;
+        if (dateFilter === 'this-week') {
+          const oneWeekAgo = new Date(currentDate.getTime() - 7 * 24 * 3600 * 1000);
+          if (itemDate < oneWeekAgo) return false;
+        }
+        if (dateFilter === 'this-month') {
+          if (itemDate.getMonth() !== currentDate.getMonth() || itemDate.getFullYear() !== currentDate.getFullYear()) return false;
+        }
+      }
+
+      const isPast = new Date(item.requiredDate).getTime() < now;
+      const rawItems = item.items || [];
+      const totalItems = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
+      const receivedItems = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+      const isItemReceived = item.status === 'Received' || (receivedItems >= totalItems && totalItems > 0);
+      const isItemOverdue = !isItemReceived && (item.status === 'Overdue' || item.isOverdue || isPast);
+
+      if (tab === 'Total') return true;
+      if (tab === 'Pending') return !isItemReceived;
+      if (tab === 'Received') return isItemReceived;
+      if (tab === 'Overdue') return isItemOverdue;
+      return true;
+    });
+  };
+
+  // Export records belonging to the tab with individual material rows preserved
+  const handleExportTab = (tab: EdfTabType, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const records = getTabRecords(tab);
+    if (records.length === 0) return;
+    const res = exportEDFsToMultiRowCSV(records, `${tab}_EDF`);
+    if (res.success) {
+      setExportNotice(
+        `Successfully exported ${res.count} ${tab} EDFs (${res.totalRows} individual material rows preserved) to CSV!`
+      );
+      setTimeout(() => setExportNotice(null), 4500);
+    }
+  };
 
   // Filtered EDFs
   const filteredEdfs = useMemo(() => {
@@ -314,6 +448,205 @@ export const EDFList: React.FC<EDFListProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Clickable EDF Category / Status Tabs with inside Export Button */}
+      <div className="p-3.5 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+          {/* Tabs Container */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Total EDF Tab */}
+            <div className={`inline-flex items-center rounded-2xl p-1 border transition-all ${
+              activeTab === 'Total'
+                ? 'bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 shadow-xs'
+                : 'bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-800'
+            }`}>
+              <button
+                type="button"
+                onClick={() => handleSwitchTab('Total')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'Total'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="View all EDF records"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Total EDF</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'Total'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                }`}>
+                  {tabCounts.total}
+                </span>
+              </button>
+
+              {/* Inside Tab Export Button */}
+              <button
+                type="button"
+                onClick={(e) => handleExportTab('Total', e)}
+                disabled={tabCounts.total === 0}
+                className="ml-1 p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-30"
+                title="Export all Total EDF records (with separate material rows) to CSV"
+                aria-label="Export Total EDF tab records to CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* 2. Pending EDF Tab */}
+            <div className={`inline-flex items-center rounded-2xl p-1 border transition-all ${
+              activeTab === 'Pending'
+                ? 'bg-amber-50/80 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800 shadow-xs'
+                : 'bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-800'
+            }`}>
+              <button
+                type="button"
+                onClick={() => handleSwitchTab('Pending')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'Pending'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Filter by Pending & Partially Received EDFs"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Pending EDF</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'Pending'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                }`}>
+                  {tabCounts.pending}
+                </span>
+              </button>
+
+              {/* Inside Tab Export Button */}
+              <button
+                type="button"
+                onClick={(e) => handleExportTab('Pending', e)}
+                disabled={tabCounts.pending === 0}
+                className="ml-1 p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-30"
+                title="Export all Pending EDF records (with separate material rows) to CSV"
+                aria-label="Export Pending EDF tab records to CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* 3. Received EDF Tab */}
+            <div className={`inline-flex items-center rounded-2xl p-1 border transition-all ${
+              activeTab === 'Received'
+                ? 'bg-emerald-50/80 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 shadow-xs'
+                : 'bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-800'
+            }`}>
+              <button
+                type="button"
+                onClick={() => handleSwitchTab('Received')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'Received'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Filter by fully Received EDFs"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Received EDF</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'Received'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                }`}>
+                  {tabCounts.received}
+                </span>
+              </button>
+
+              {/* Inside Tab Export Button */}
+              <button
+                type="button"
+                onClick={(e) => handleExportTab('Received', e)}
+                disabled={tabCounts.received === 0}
+                className="ml-1 p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-30"
+                title="Export all Received EDF records (with separate material rows) to CSV"
+                aria-label="Export Received EDF tab records to CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* 4. Overdue EDF Tab */}
+            <div className={`inline-flex items-center rounded-2xl p-1 border transition-all ${
+              activeTab === 'Overdue'
+                ? 'bg-rose-50/80 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800 shadow-xs'
+                : 'bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-800'
+            }`}>
+              <button
+                type="button"
+                onClick={() => handleSwitchTab('Overdue')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'Overdue'
+                    ? 'bg-rose-600 text-white shadow-sm animate-pulse'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Filter by Overdue EDFs"
+              >
+                <AlertOctagon className="w-3.5 h-3.5" />
+                <span>Overdue EDF</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'Overdue'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                }`}>
+                  {tabCounts.overdue}
+                </span>
+              </button>
+
+              {/* Inside Tab Export Button */}
+              <button
+                type="button"
+                onClick={(e) => handleExportTab('Overdue', e)}
+                disabled={tabCounts.overdue === 0}
+                className="ml-1 p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-30"
+                title="Export all Overdue EDF records (with separate material rows) to CSV"
+                aria-label="Export Overdue EDF tab records to CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Active Tab Direct Export CTA Button */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleExportTab(activeTab)}
+              disabled={getTabRecords(activeTab).length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-extrabold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-40"
+              title={`Download all ${getTabRecords(activeTab).length} records belonging to ${activeTab} tab with separate material rows`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export {activeTab} EDF CSV ({getTabRecords(activeTab).length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Export Notification Notice */}
+        {exportNotice && (
+          <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>{exportNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExportNotice(null)}
+              className="text-xs opacity-70 hover:opacity-100 p-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Search & Filter Toolbar */}
       <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -345,7 +678,18 @@ export const EDFList: React.FC<EDFListProps> = ({
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* QR / Barcode Camera Scanner Button */}
+            <button
+              type="button"
+              onClick={() => setIsBarcodeModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-indigo-200 dark:border-indigo-800 hover:border-indigo-300 dark:hover:border-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-xs font-bold shadow-xs transition-all cursor-pointer"
+              title="Scan QR Code or Barcode with device camera to receive items"
+            >
+              <Scan className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Scan Barcode</span>
+            </button>
+
             <button
               onClick={() => onExportCSV(filteredEdfs)}
               className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs transition-all"
@@ -1290,6 +1634,17 @@ export const EDFList: React.FC<EDFListProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* QR / Barcode Scanner Modal */}
+      {isBarcodeModalOpen && (
+        <BarcodeScannerModal
+          isOpen={isBarcodeModalOpen}
+          onClose={() => setIsBarcodeModalOpen(false)}
+          edfs={edfs}
+          onReceiveItems={onReceiveItems}
+          onViewDetails={onViewDetails}
+        />
       )}
     </div>
   );
