@@ -971,7 +971,8 @@ const MainLayout: React.FC = () => {
               onReceiveItems={handleReceiveItems}
               onUndoItemReceived={handleUndoItemReceived}
               onBulkAction={handleBulkAction}
-              onOpenCreate={() => setIsCreateModalOpen(true)}
+              onOpenCreate={() => setActiveTab('import')}
+              onOpenImport={() => setActiveTab('import')}
               onExportCSV={handleExportCSV}
               isAdmin={isAdmin}
               initialCategory={filterCategory}
@@ -995,7 +996,7 @@ const MainLayout: React.FC = () => {
             <ExcelImport
               categories={categories}
               onSaveEDF={handleSaveNewEDF}
-              onCancel={() => setActiveTab('dashboard')}
+              onCancel={() => setActiveTab('edfs')}
               existingEdfs={edfs}
               onImportSuccess={() => {
                 refreshAllData(true);

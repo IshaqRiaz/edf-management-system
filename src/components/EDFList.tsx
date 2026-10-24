@@ -64,6 +64,7 @@ interface EDFListProps {
   onUndoItemReceived?: (edfId: number, itemId: number) => Promise<void>;
   onBulkAction: (ids: number[], action: 'mark-received' | 'delete') => void;
   onOpenCreate: () => void;
+  onOpenImport?: () => void;
   onExportCSV: (filtered: EDF[]) => void;
   isAdmin: boolean;
   initialCategory?: string;
@@ -86,6 +87,7 @@ export const EDFList: React.FC<EDFListProps> = ({
   onUndoItemReceived,
   onBulkAction,
   onOpenCreate,
+  onOpenImport,
   onExportCSV,
   isAdmin,
   initialCategory = 'All',
@@ -709,8 +711,9 @@ export const EDFList: React.FC<EDFListProps> = ({
 
             {isAdmin && (
               <button
-                onClick={onOpenCreate}
+                onClick={onOpenImport || onOpenCreate}
                 className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
+                title="Create New EDF via Import Excel and CSV"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>New EDF</span>
