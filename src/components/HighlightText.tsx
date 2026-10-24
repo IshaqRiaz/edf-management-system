@@ -11,7 +11,7 @@ export const HighlightText: React.FC<HighlightTextProps> = ({
   text,
   query,
   className = '',
-  highlightClassName = 'bg-amber-300 dark:bg-amber-400/35 text-amber-950 dark:text-amber-100 font-bold px-1 py-0.5 rounded border border-amber-400/80 dark:border-amber-400/50 shadow-2xs search-highlight inline leading-none',
+  highlightClassName = 'bg-amber-300 dark:bg-amber-400/45 text-amber-950 dark:text-amber-50 font-black px-1 py-0.5 rounded border border-amber-400 dark:border-amber-400/70 shadow-2xs search-highlight inline leading-none ring-1 ring-amber-400/40',
 }) => {
   if (text === null || text === undefined || text === '') return null;
   const str = String(text);

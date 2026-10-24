@@ -51,6 +51,56 @@ export const isDueWithin24Hours = (requiredDate: string | Date, status?: string)
   return diffMs <= 24 * 60 * 60 * 1000 && diffMs > 0;
 };
 
+export const checkItemMatchesSearch = (item: EDFItem, query: string): boolean => {
+  if (!query || !query.trim()) return true;
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
+  const desc = checkStr(item.itemDescription);
+  const unit = checkStr(item.unit);
+  const remarks = checkStr(item.remarks || item.justification);
+  return tokens.every((t) => desc.includes(t) || unit.includes(t) || remarks.includes(t));
+};
+
+export const checkEdfMatchesSearch = (
+  item: EDF,
+  query: string
+): { isMatch: boolean; matchingItemIds: Set<number> } => {
+  if (!query || !query.trim()) {
+    return { isMatch: true, matchingItemIds: new Set() };
+  }
+
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
+  const matchingItemIds = new Set<number>();
+
+  if (item.items && item.items.length > 0) {
+    for (const it of item.items) {
+      if (checkItemMatchesSearch(it, query)) {
+        if (it.id) matchingItemIds.add(it.id);
+      }
+    }
+  }
+
+  const isMatch = tokens.every((token) => {
+    return (
+      checkStr(item.edfNumber).includes(token) ||
+      checkStr(item.requesterName).includes(token) ||
+      checkStr(item.category).includes(token) ||
+      checkStr(item.materialList).includes(token) ||
+      checkStr(item.unit).includes(token) ||
+      checkStr(item.remarks).includes(token) ||
+      item.items?.some((it) => {
+        const itDesc = checkStr(it.itemDescription);
+        const itUnit = checkStr(it.unit);
+        const itRemarks = checkStr(it.remarks || it.justification);
+        return itDesc.includes(token) || itUnit.includes(token) || itRemarks.includes(token);
+      })
+    );
+  });
+
+  return { isMatch, matchingItemIds };
+};
+
 interface EDFListProps {
   edfs: EDF[];
   categories: Category[];
@@ -130,6 +180,24 @@ export const EDFList: React.FC<EDFListProps> = ({
   // QR / Barcode Scanner Modal & Export notice state
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+
+  // Search highlighting & visual dimming state
+  // When active (true by default), non-matching items are visually dimmed while matches are highlighted
+  const [dimNonMatching, setDimNonMatching] = useState<boolean>(true);
+
+  // Search match statistics across all EDFs
+  const searchMatchStats = useMemo(() => {
+    if (!search.trim()) {
+      return { totalMatches: 0, matchingIds: new Set<number>() };
+    }
+    const matchingIds = new Set<number>();
+    for (const item of edfs) {
+      if (checkEdfMatchesSearch(item, search).isMatch) {
+        matchingIds.add(item.id);
+      }
+    }
+    return { totalMatches: matchingIds.size, matchingIds };
+  }, [edfs, search]);
 
   // Tab switching handler
   const handleSwitchTab = (tab: EdfTabType) => {
@@ -290,28 +358,12 @@ export const EDFList: React.FC<EDFListProps> = ({
         return false;
       }
 
-      // Search query (Keyword, EDF Number, Requester Name, Material List, Remarks, Unit, Items)
-      if (search.trim()) {
-        const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
-        const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
-
-        const matchesAllTokens = tokens.every((token) => {
-          const matchNumber = checkStr(item.edfNumber).includes(token);
-          const matchName = checkStr(item.requesterName).includes(token);
-          const matchCategory = checkStr(item.category).includes(token);
-          const matchMaterial = checkStr(item.materialList).includes(token);
-          const matchUnit = checkStr(item.unit).includes(token);
-          const matchRemarks = checkStr(item.remarks).includes(token);
-          const matchItems = item.items?.some((it) =>
-            checkStr(it.itemDescription).includes(token) || checkStr(it.unit).includes(token)
-          ) || false;
-
-          return matchNumber || matchName || matchCategory || matchMaterial || matchUnit || matchRemarks || matchItems;
-        });
-
-        if (!matchesAllTokens) {
-          return false;
-        }
+      // Search query handling:
+      // When dimNonMatching is true (default): keep items in view so non-matching items/rows are visually dimmed and matches are highlighted.
+      // When dimNonMatching is false: filter out non-matching items completely.
+      if (search.trim() && !dimNonMatching) {
+        const { isMatch } = checkEdfMatchesSearch(item, search);
+        if (!isMatch) return false;
       }
 
       // Date preset filter
@@ -332,7 +384,7 @@ export const EDFList: React.FC<EDFListProps> = ({
 
       return true;
     });
-  }, [edfs, selectedCategory, selectedStatus, overdueOnly, search, dateFilter]);
+  }, [edfs, selectedCategory, selectedStatus, overdueOnly, search, dateFilter, dimNonMatching]);
 
   // Bulk selection handlers
   const handleSelectAll = () => {
@@ -722,25 +774,61 @@ export const EDFList: React.FC<EDFListProps> = ({
           </div>
         </div>
 
-        {/* Search highlight status banner */}
+        {/* Search highlight & visual dimming status banner */}
         {search.trim() && (
-          <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 text-xs text-amber-900 dark:text-amber-200 shadow-2xs animate-in fade-in duration-200">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 relative">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-50/95 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700/80 text-xs text-amber-950 dark:text-amber-100 shadow-2xs animate-in fade-in duration-200">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="flex h-2.5 w-2.5 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
               </span>
-              <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>
-                Search Term Highlighting active for: <strong className="underline underline-offset-2 px-1.5 py-0.5 rounded bg-amber-200/90 dark:bg-amber-400/30 border border-amber-400/60 dark:border-amber-400/40 text-amber-950 dark:text-amber-100 font-bold">"{search.trim()}"</strong> — Found <strong>{filteredEdfs.length}</strong> matching form{filteredEdfs.length === 1 ? '' : 's'}.
+                Search active for: <strong className="underline underline-offset-2 px-1.5 py-0.5 rounded bg-amber-200/90 dark:bg-amber-400/30 border border-amber-400/60 dark:border-amber-400/40 text-amber-950 dark:text-amber-100 font-black">"{search.trim()}"</strong>
               </span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-200/90 dark:bg-amber-900/70 text-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                {searchMatchStats.totalMatches} match{searchMatchStats.totalMatches === 1 ? '' : 'es'} found
+              </span>
+              {dimNonMatching && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-amber-900/80 dark:text-amber-300 font-semibold bg-amber-100/60 dark:bg-amber-900/40 px-2 py-0.5 rounded-full border border-amber-200/70 dark:border-amber-800/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  Non-matching items visually dimmed
+                </span>
+              )}
             </div>
-            <button
-              onClick={() => setSearch('')}
-              className="text-[11px] font-bold text-amber-800 dark:text-amber-300 hover:text-amber-950 dark:hover:text-amber-100 hover:underline px-2 py-1 rounded-lg hover:bg-amber-100/80 dark:hover:bg-amber-900/40 transition-colors"
-            >
-              Clear Search
-            </button>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              {/* Dim Non-Matching Mode Toggle */}
+              <button
+                type="button"
+                onClick={() => setDimNonMatching((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                  dimNonMatching
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shadow-xs'
+                    : 'bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-slate-800 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700'
+                }`}
+                title={dimNonMatching ? 'Dimming mode is ON. Click to hide non-matching items.' : 'Filter mode is ON. Click to dim non-matching items instead.'}
+              >
+                {dimNonMatching ? (
+                  <>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Dim Non-Matching: ON</span>
+                  </>
+                ) : (
+                  <>
+                    <Filter className="w-3.5 h-3.5" />
+                    <span>Filter Only (Hide)</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => setSearch('')}
+                className="text-[11px] font-bold text-amber-900 dark:text-amber-200 hover:text-amber-950 dark:hover:text-white hover:underline px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 transition-colors cursor-pointer"
+              >
+                Clear Search
+              </button>
+            </div>
           </div>
         )}
 
@@ -938,20 +1026,27 @@ export const EDFList: React.FC<EDFListProps> = ({
                   const isRowSelected = selectedIds.includes(item.id);
                   const isOverdue = item.status === 'Overdue' || item.isOverdue;
                   const isDueSoon = isDueWithin24Hours(item.requiredDate, item.status);
+                  const searchMatch = checkEdfMatchesSearch(item, search);
+                  const isItemMatch = !search.trim() || searchMatch.isMatch;
+                  const isDimmed = search.trim().length > 0 && dimNonMatching && !isItemMatch;
 
                   return (
                     <React.Fragment key={item.id}>
                       <tr
-                        className={`transition-colors group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
-                        isOverdue
-                          ? 'bg-red-50/40 dark:bg-red-950/25 font-medium border-l-4 border-l-red-600'
-                          : isDueSoon
-                          ? 'bg-amber-50/25 dark:bg-amber-950/20 font-medium border-l-4 border-l-amber-500'
-                          : isRowSelected
-                          ? 'bg-indigo-50/30 dark:bg-indigo-950/20'
-                          : ''
-                      }`}
-                    >
+                        className={`transition-all duration-200 group ${
+                          isDimmed
+                            ? 'opacity-30 dark:opacity-20 contrast-75 saturate-50 hover:opacity-95 hover:contrast-100 hover:saturate-100 bg-slate-100/50 dark:bg-slate-900/30 border-l-2 border-l-slate-300 dark:border-l-slate-700'
+                            : isOverdue
+                            ? 'bg-red-50/40 dark:bg-red-950/25 font-medium border-l-4 border-l-red-600'
+                            : isDueSoon
+                            ? 'bg-amber-50/25 dark:bg-amber-950/20 font-medium border-l-4 border-l-amber-500'
+                            : isRowSelected
+                            ? 'bg-indigo-50/30 dark:bg-indigo-950/20'
+                            : search.trim() && isItemMatch
+                            ? 'bg-amber-50/35 dark:bg-amber-950/25 border-l-4 border-l-amber-500 dark:border-l-amber-400 ring-1 ring-amber-400/30 dark:ring-amber-500/20 shadow-xs'
+                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
                       {isAdmin && (
                         <td className="py-2.5 px-3 text-center">
                           <input
@@ -965,7 +1060,7 @@ export const EDFList: React.FC<EDFListProps> = ({
 
                       {/* 1. EDF Number */}
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {isDueSoon && (
                             <span
                               className="inline-flex items-center justify-center p-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800"
@@ -981,6 +1076,24 @@ export const EDFList: React.FC<EDFListProps> = ({
                           >
                             <HighlightText text={item.edfNumber} query={search} />
                           </button>
+                          {search.trim() && (
+                            isItemMatch ? (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs shrink-0"
+                                title="Matches search criteria"
+                              >
+                                <Sparkles className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                Match
+                              </span>
+                            ) : (
+                              <span
+                                className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-medium shrink-0"
+                                title="Visually dimmed (does not match search)"
+                              >
+                                Dimmed
+                              </span>
+                            )
+                          )}
                         </div>
                       </td>
 
@@ -1216,17 +1329,23 @@ export const EDFList: React.FC<EDFListProps> = ({
                                   ).map((it: EDFItem, idx) => {
                                     const isReceived = it.status === 'Received';
                                     const isChecked = Boolean(it.id && selectedItemIds.includes(it.id));
+                                    const isItemDescMatch = !search.trim() || checkItemMatchesSearch(it, search);
+                                    const isItemDimmed = search.trim().length > 0 && !isItemDescMatch;
 
                                     return (
                                       <tr
                                         key={it.id || idx}
-                                        className={
-                                          isReceived
+                                        className={`transition-all duration-200 ${
+                                          isItemDimmed
+                                            ? 'opacity-30 dark:opacity-20 contrast-75 saturate-50 hover:opacity-90 hover:contrast-100 hover:saturate-100 bg-slate-100/40 dark:bg-slate-900/30'
+                                            : isReceived
                                             ? 'bg-emerald-50/30 dark:bg-emerald-950/20'
                                             : isChecked
                                             ? 'bg-blue-50/40 dark:bg-blue-950/25'
+                                            : search.trim() && isItemDescMatch
+                                            ? 'bg-amber-50/40 dark:bg-amber-950/30 border-l-2 border-l-amber-500'
                                             : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/40'
-                                        }
+                                        }`}
                                       >
                                         <td className="py-2 px-3 text-center">
                                           {isReceived ? (
@@ -1245,7 +1364,21 @@ export const EDFList: React.FC<EDFListProps> = ({
                                           )}
                                         </td>
                                         <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">
-                                          <HighlightText text={it.itemDescription} query={search} />
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <HighlightText text={it.itemDescription} query={search} />
+                                            {search.trim() && (
+                                              isItemDescMatch ? (
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs shrink-0">
+                                                  <Sparkles className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                                  Match
+                                                </span>
+                                              ) : (
+                                                <span className="text-[9px] px-1 py-0.2 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-400 font-medium shrink-0">
+                                                  Dimmed
+                                                </span>
+                                              )
+                                            )}
+                                          </div>
                                         </td>
                                         <td className="py-2 px-3 text-right text-slate-500">
                                           <HighlightText text={it.unit} query={search} />
@@ -1320,15 +1453,22 @@ export const EDFList: React.FC<EDFListProps> = ({
             filteredEdfs.map((item) => {
               const isOverdue = item.status === 'Overdue' || item.isOverdue;
               const isDueSoon = isDueWithin24Hours(item.requiredDate, item.status);
+              const searchMatch = checkEdfMatchesSearch(item, search);
+              const isItemMatch = !search.trim() || searchMatch.isMatch;
+              const isDimmed = search.trim().length > 0 && dimNonMatching && !isItemMatch;
 
               return (
                 <div
                   key={item.id}
-                  className={`p-4 space-y-3 transition-colors ${
-                    isOverdue
+                  className={`p-4 space-y-3 transition-all duration-200 ${
+                    isDimmed
+                      ? 'opacity-30 dark:opacity-20 contrast-75 saturate-50 hover:opacity-95 hover:contrast-100 hover:saturate-100 bg-slate-100/40 dark:bg-slate-900/30 border-l-2 border-l-slate-300 dark:border-l-slate-700'
+                      : isOverdue
                       ? 'bg-red-50/40 dark:bg-red-950/20 border-l-4 border-l-red-600'
                       : isDueSoon
                       ? 'bg-amber-50/25 dark:bg-amber-950/15 border-l-4 border-l-amber-500'
+                      : search.trim() && isItemMatch
+                      ? 'bg-amber-50/30 dark:bg-amber-950/20 border-l-4 border-l-amber-500 ring-1 ring-amber-400/30'
                       : ''
                   }`}
                 >
@@ -1349,6 +1489,24 @@ export const EDFList: React.FC<EDFListProps> = ({
                       >
                         <HighlightText text={item.edfNumber} query={search} />
                       </button>
+                      {search.trim() && (
+                        isItemMatch ? (
+                          <span
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-black bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 shadow-2xs shrink-0"
+                            title="Matches search criteria"
+                          >
+                            <Sparkles className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                            Match
+                          </span>
+                        ) : (
+                          <span
+                            className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-medium shrink-0"
+                            title="Visually dimmed (does not match search)"
+                          >
+                            Dimmed
+                          </span>
+                        )
+                      )}
                       <span
                         className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${getCategoryColor(
                           item.category
