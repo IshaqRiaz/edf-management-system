@@ -25,11 +25,37 @@
       (function() {
         var originalConsoleError = console.error;
         console.error = function() {
-          if (arguments[0] && typeof arguments[0] === 'string' && arguments[0].indexOf('Expected static flag was missing') !== -1) {
+          var msg = arguments[0];
+          if (typeof msg === 'string' && (
+            msg.indexOf('Expected static flag was missing') !== -1 ||
+            msg.indexOf('WebSocket closed without opened') !== -1 ||
+            msg.indexOf('WebSocket connection') !== -1
+          )) {
+            return;
+          }
+          if (msg && msg.message && typeof msg.message === 'string' && msg.message.indexOf('WebSocket closed without opened') !== -1) {
             return;
           }
           originalConsoleError.apply(console, arguments);
         };
+
+        // Suppress unhandled WebSocket closed events from disabled HMR in AI Studio
+        window.addEventListener('error', function(event) {
+          if (event && event.message && event.message.indexOf('WebSocket closed without opened') !== -1) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event && event.reason) {
+            var reasonStr = String(event.reason.message || event.reason);
+            if (reasonStr.indexOf('WebSocket closed without opened') !== -1) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }
+        }, true);
 
         // Initialize persisted theme immediately to prevent flashing
         try {
