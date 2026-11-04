@@ -237,42 +237,77 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
       return;
     }
 
-    // 1. Scan top metadata/title rows (first 8 rows) for top-level PDF/EDF number e.g. "PDF Number: 1042" or "EDF No. 2026-005"
+    // 1. Scan top metadata/title rows (first 10 rows) for top-level PDF/EDF number e.g.
+    // "PDF Number: 1042", "EDF No. 2026-005", "PDF No: 1042", "EDF Number: 2980", "EDF #1042"
+    // Also handles two-column key-value rows like: ["PDF Number", "1042"] or ["EDF No.", "2980"]
     let metaEdfNumber: string | null = null;
     let metaEdfHeading: string | null = null;
     let metaRequester: string | null = null;
     let metaCategory: string | null = null;
 
-    for (let i = 0; i < Math.min(cleanedRows.length, 8); i++) {
+    // Helper to test if a label matches any EDF/PDF number variation
+    const isEdfNumberLabel = (rawText: string): boolean => {
+      if (!rawText) return false;
+      const lower = rawText.toLowerCase().trim();
+      const clean = lower.replace(/[^a-z0-9]/g, '');
+
+      // Direct clean key matches
+      if ([
+        'pdfnumber', 'pdfno', 'pdfnum', 'pdf#', 'pdf',
+        'edfnumber', 'edfno', 'edfnum', 'edf#', 'edf',
+        'demandformnumber', 'demandformno', 'demandformnum', 'demandform#', 'demandform',
+        'formnumber', 'formno', 'formnum', 'form#',
+      ].includes(clean)) {
+        return true;
+      }
+
+      // Pattern matches like "pdf number", "pdf no.", "edf no", "edf number", "pdf #", "edf #"
+      return /^(?:pdf|edf|demand\s*form|form)\s*(?:no\.?|number|num\.?|#)?$/i.test(lower) ||
+             /^(?:pdf|edf)\s*[:#\s-]/i.test(lower);
+    };
+
+    // Helper to sanitize extracted number (strip leading colons, hash signs, etc.)
+    const sanitizeExtractedNumber = (val: string): string => {
+      return String(val || '')
+        .trim()
+        .replace(/^[:\s#=-]+/, '')
+        .replace(/[:\s#=-]+$/, '')
+        .trim();
+    };
+
+    for (let i = 0; i < Math.min(cleanedRows.length, 10); i++) {
       const row = cleanedRows[i];
       for (let cIdx = 0; cIdx < row.length; cIdx++) {
         const cellStr = String(row[cIdx] || '').trim();
         if (!cellStr) continue;
 
-        // Check if single cell has "PDF Number: 1042" or "PDF No. 1042" or "EDF# 2026-01"
-        const inlineMatch = cellStr.match(/(?:pdf|edf|demand\s*form|form)\s*(?:no\.?|number|#)?[:\s-]+([a-z0-9_/-]+)/i);
-        if (inlineMatch && inlineMatch[1] && !metaEdfNumber) {
-          metaEdfNumber = inlineMatch[1].trim();
-          metaEdfHeading = cellStr.split(/[:\s-]/)[0];
-        }
-
-        // Check if cell is a label like "PDF Number" and next cell has the value
-        const lower = cellStr.toLowerCase();
-        const cleanLabel = lower.replace(/[^a-z0-9]/g, '');
-        if (
-          (cleanLabel === 'pdfnumber' || cleanLabel === 'pdfno' || cleanLabel === 'pdf' || cleanLabel === 'pdfnum' ||
-           cleanLabel === 'edfnumber' || cleanLabel === 'edfno' || cleanLabel === 'edf' || cleanLabel === 'edfnum' ||
-           cleanLabel === 'demandformnumber' || cleanLabel === 'demandformno' || cleanLabel === 'formno') &&
-          row[cIdx + 1] !== undefined
-        ) {
-          const nextVal = String(row[cIdx + 1] || '').trim();
-          if (nextVal && !metaEdfNumber) {
-            metaEdfNumber = nextVal;
-            metaEdfHeading = cellStr;
+        // 1. If cell is a label like "PDF Number", "PDF No.", "EDF Number", "EDF No.", "EDF No"
+        // look for the value entered next to it in that row
+        if (isEdfNumberLabel(cellStr)) {
+          for (let nIdx = cIdx + 1; nIdx < row.length; nIdx++) {
+            const candidateVal = sanitizeExtractedNumber(row[nIdx]);
+            if (candidateVal && !isEdfNumberLabel(candidateVal)) {
+              if (!metaEdfNumber) {
+                metaEdfNumber = candidateVal;
+                metaEdfHeading = cellStr;
+              }
+              break;
+            }
+          }
+        } else {
+          // 2. Check if single cell has "PDF Number: 1042", "EDF Number: 4567", "EDF#2026-01", etc.
+          const inlineMatch = cellStr.match(/^(?:pdf|edf|demand\s*form|form)\s*(?:no\.?|number|num\.?|#)?\s*[:\s#=-]+\s*([a-z0-9_./#-]+)$/i);
+          if (inlineMatch && inlineMatch[1] && !metaEdfNumber) {
+            const candidate = sanitizeExtractedNumber(inlineMatch[1]);
+            if (candidate && !/^(?:number|no|items?|materials?)$/i.test(candidate)) {
+              metaEdfNumber = candidate;
+              metaEdfHeading = cellStr.split(/[:\s=-]/)[0] || 'PDF/EDF Number';
+            }
           }
         }
 
         // Check if cell has category name
+        const lower = cellStr.toLowerCase();
         if (!metaCategory) {
           const matchedCat = categories.find((c) => c.name.toLowerCase() === lower);
           if (matchedCat) {
@@ -294,7 +329,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     let detectedEdfColName: string | null = null;
     let detectedJustColName: string | null = null;
 
-    for (let i = 0; i < Math.min(cleanedRows.length, 10); i++) {
+    for (let i = 0; i < Math.min(cleanedRows.length, 12); i++) {
       const row = cleanedRows[i].map((cell) => String(cell || '').toLowerCase().trim());
 
       let tempEdfCol = -1;
@@ -310,8 +345,9 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
       row.forEach((cell, idx) => {
         const clean = cell.replace(/[^a-z0-9]/g, '');
 
-        // 1. PDF / EDF Number Column detection
+        // 1. PDF / EDF Number Column detection (supports all variations of EDF/PDF Number)
         if (
+          isEdfNumberLabel(cell) ||
           cell.includes('pdf number') || cell.includes('pdf no') || cell.includes('pdf #') || cell === 'pdf' ||
           cell.includes('edf number') || cell.includes('edf no') || cell.includes('edf #') || cell === 'edf' ||
           cell.includes('demand form') || cell.includes('demand no') || cell.includes('form no') || cell.includes('form number') ||
@@ -320,7 +356,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
           clean === 'demandformnumber' || clean === 'demandformno' || clean === 'formnumber' || clean === 'formno'
         ) {
           tempEdfCol = idx;
-          tempEdfName = String(cleanedRows[i][idx] || 'PDF Number');
+          tempEdfName = String(cleanedRows[i][idx] || 'PDF/EDF Number');
         }
         // 2. Justification & Requirements For & Remarks Column detection
         else if (
@@ -473,21 +509,26 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     let finalDetectedNumber: string | null = null;
     let detectedSource: 'detected' | 'ambiguous' | 'missing' = 'missing';
 
-    if (numbersFound.length === 1) {
-      finalDetectedNumber = numbersFound[0];
-      detectedSource = 'detected';
-      setDetectedColumnHeading(detectedEdfColName || 'PDF Number');
-      setAmbiguousNumbers([]);
-    } else if (numbersFound.length > 1) {
-      finalDetectedNumber = numbersFound[0];
-      detectedSource = 'ambiguous';
-      setDetectedColumnHeading(detectedEdfColName || 'PDF Number');
-      setAmbiguousNumbers(numbersFound);
-    } else if (metaEdfNumber) {
+    // Filter unique numbers
+    const uniqueNumbersFound = Array.from(new Set(numbersFound.map(sanitizeExtractedNumber).filter(Boolean)));
+
+    if (metaEdfNumber) {
+      // User entered a dedicated field such as "PDF Number: 1042" or "EDF No." with value next to it
       finalDetectedNumber = metaEdfNumber;
       detectedSource = 'detected';
-      setDetectedColumnHeading(metaEdfHeading || 'Table Heading');
+      setDetectedColumnHeading(metaEdfHeading || 'PDF/EDF Number Field');
       setAmbiguousNumbers([]);
+    } else if (uniqueNumbersFound.length === 1) {
+      finalDetectedNumber = uniqueNumbersFound[0];
+      detectedSource = 'detected';
+      setDetectedColumnHeading(detectedEdfColName || 'PDF/EDF Number Column');
+      setAmbiguousNumbers([]);
+    } else if (uniqueNumbersFound.length > 1) {
+      // Multiple different numbers found across rows - requires user confirmation
+      finalDetectedNumber = uniqueNumbersFound[0];
+      detectedSource = 'ambiguous';
+      setDetectedColumnHeading(detectedEdfColName || 'PDF/EDF Number');
+      setAmbiguousNumbers(uniqueNumbersFound);
     } else {
       detectedSource = 'missing';
       setDetectedColumnHeading(null);
