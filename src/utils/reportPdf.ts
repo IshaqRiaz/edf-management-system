@@ -133,7 +133,14 @@ export function generateReportPdf({
   doc.text('Departmental Demand Breakdown (Unique EDF Count)', margin, currentY);
   currentY += 3;
 
-  const catRows = categories.map((cat) => {
+  const scopedCategories =
+    selectedCategory && selectedCategory !== 'All'
+      ? categories.filter(
+          (cat) => cat.name.toLowerCase() === selectedCategory.toLowerCase()
+        )
+      : categories;
+
+  const catRows = scopedCategories.map((cat) => {
     const catEdfs = uniqueEdfs.filter(
       (e) => String(e.category || '').toLowerCase() === cat.name.toLowerCase()
     );

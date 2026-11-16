@@ -1950,11 +1950,6 @@ async function startServer() {
       WHERE LOWER(requester_name) IN ('mohammad azeem', 'muhammad azeem');
     `).catch(() => {});
     await db.execute(sql`
-      UPDATE edf_status_history
-      SET requester_name = 'Azeem Karim'
-      WHERE LOWER(requester_name) IN ('mohammad azeem', 'muhammad azeem');
-    `).catch(() => {});
-    await db.execute(sql`
       DELETE FROM requesters
       WHERE LOWER(name) IN ('mohammad azeem', 'muhammad azeem');
     `).catch(() => {});
@@ -1966,7 +1961,7 @@ async function startServer() {
   if (isDev) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false, ws: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);

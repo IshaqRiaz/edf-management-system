@@ -11,6 +11,7 @@ import {
   getEffectiveEdfState,
   getExportFilterLabel,
 } from '../utils/exportHelpers.ts';
+import { generateMergedEdfPdf } from '../utils/pdfGenerator.ts';
 import {
   ResponsiveContainer,
   LineChart,
@@ -40,9 +41,12 @@ import {
   PlusCircle,
   FileUp,
   Download,
+  FileDown,
   Filter,
   Calendar,
   Activity,
+  Hash,
+  X,
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -185,6 +189,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [activityFilter, setActivityFilter] = useState<'all' | 'creation' | 'update' | 'status' | 'deletion'>('all');
   const [statsStatusFilter, setStatsStatusFilter] = useState<ExportFilterType>('Total');
   const [statsCategoryFilter, setStatsCategoryFilter] = useState<string>('All');
+  const [statsSpecificEdf, setStatsSpecificEdf] = useState<string>('');
 
   const getActivityCategory = (action: string): 'creation' | 'update' | 'status' | 'deletion' | 'other' => {
     const act = action.toLowerCase();
@@ -244,14 +249,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return filterEdfsForExport(edfs, {
       statusFilter: statsStatusFilter,
       categoryFilter: statsCategoryFilter,
+      specificEdfNumber: statsSpecificEdf,
     });
-  }, [edfs, statsStatusFilter, statsCategoryFilter]);
+  }, [edfs, statsStatusFilter, statsCategoryFilter, statsSpecificEdf]);
 
   const uniqueAllEdfs = filteredExportResult.uniqueAllEdfs;
   const uniqueEdfs = filteredExportResult.filteredEdfs;
 
   const hasActiveStatsFilter =
-    statsStatusFilter !== 'Total' || statsCategoryFilter !== 'All';
+    statsStatusFilter !== 'Total' ||
+    statsCategoryFilter !== 'All' ||
+    statsSpecificEdf.trim() !== '';
 
   const totalUniqueCountById = useMemo(
     () => countUniqueEdfsById(uniqueAllEdfs),
@@ -278,11 +286,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const effectiveOverdue = hasEdfsData ? uniqueStats.overdue : stats.overdue;
 
   const activeStatsFilterLabel = useMemo(() => {
-    const base = getExportFilterLabel({
+    return getExportFilterLabel({
       statusFilter: statsStatusFilter,
+      categoryFilter: statsCategoryFilter,
+      specificEdfNumber: statsSpecificEdf,
     });
-    return statsCategoryFilter !== 'All' ? `${base}_${statsCategoryFilter}` : base;
-  }, [statsStatusFilter, statsCategoryFilter]);
+  }, [statsStatusFilter, statsCategoryFilter, statsSpecificEdf]);
 
   // Available category options for the Dashboard stats filter
   const availableCategories = useMemo(() => {
@@ -714,10 +723,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
             onClick={() => onExportCSV(hasEdfsData ? uniqueEdfs : undefined, activeStatsFilterLabel)}
             disabled={effectiveTotal === 0}
             className="flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-            title={`Export ${effectiveTotal} unique EDF${effectiveTotal === 1 ? '' : 's'} to CSV`}
+            title={`Export ${effectiveTotal} matching unique EDF${effectiveTotal === 1 ? '' : 's'} to CSV`}
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV ({effectiveTotal})</span>
+          </button>
+          <button
+            onClick={() => {
+              if (!hasEdfsData || uniqueEdfs.length === 0) return;
+              generateMergedEdfPdf(uniqueEdfs, activeStatsFilterLabel);
+            }}
+            disabled={!hasEdfsData || uniqueEdfs.length === 0}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+            title={`Export ${uniqueEdfs.length} matching unique EDF${uniqueEdfs.length === 1 ? '' : 's'} to PDF`}
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            <span>Export PDF ({hasEdfsData ? uniqueEdfs.length : 0})</span>
           </button>
         </div>
       </div>
@@ -749,7 +770,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <select
                 aria-label="Filter dashboard stats by status"
                 value={statsStatusFilter}
-                onChange={(e) => setStatsStatusFilter(e.target.value as ExportFilterType)}
+                onChange={(e) => {
+                  const val = e.target.value as ExportFilterType;
+                  setStatsStatusFilter(val);
+                  if (val !== 'Specific' && statsSpecificEdf) {
+                    setStatsSpecificEdf('');
+                  }
+                }}
                 className="px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-bold text-[11px] focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
               >
                 <option value="Total">All Statuses</option>
@@ -757,8 +784,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <option value="Partially Received">Partially Received EDF</option>
                 <option value="Received">Received EDF</option>
                 <option value="Overdue">Overdue EDF</option>
+                <option value="Specific">Specific EDF Number</option>
               </select>
             </div>
+
+            {statsStatusFilter === 'Specific' && (
+              <div className="relative flex items-center">
+                <Hash className="w-3 h-3 text-indigo-500 absolute left-2 pointer-events-none" />
+                <input
+                  type="text"
+                  aria-label="Filter dashboard stats by specific EDF number"
+                  value={statsSpecificEdf}
+                  onChange={(e) => setStatsSpecificEdf(e.target.value)}
+                  placeholder="EDF # (e.g. 3265)"
+                  className="pl-6 pr-6 py-1 w-36 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-mono font-bold text-[11px] focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+                {statsSpecificEdf && (
+                  <button
+                    type="button"
+                    onClick={() => setStatsSpecificEdf('')}
+                    className="absolute right-1.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    title="Clear EDF number"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            )}
 
             <select
               aria-label="Filter dashboard stats by category"
@@ -780,6 +832,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 onClick={() => {
                   setStatsStatusFilter('Total');
                   setStatsCategoryFilter('All');
+                  setStatsSpecificEdf('');
                 }}
                 className="px-2 py-1 rounded-lg text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
               >

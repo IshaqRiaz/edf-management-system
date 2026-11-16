@@ -120,9 +120,10 @@ export const Reports: React.FC<ReportsProps> = ({
   const activeFilterLabel = useMemo(() => {
     return getExportFilterLabel({
       statusFilter: selectedStatus,
+      categoryFilter: selectedCategory,
       specificEdfNumber,
     });
-  }, [selectedStatus, specificEdfNumber]);
+  }, [selectedStatus, selectedCategory, specificEdfNumber]);
 
   const activeFilterDisplay = useMemo(() => {
     if (selectedStatus === 'Specific') {
@@ -820,7 +821,12 @@ export const Reports: React.FC<ReportsProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {categories.map((cat) => {
+                  {(selectedCategory !== 'All'
+                    ? categories.filter(
+                        (cat) => cat.name.toLowerCase() === selectedCategory.toLowerCase()
+                      )
+                    : categories
+                  ).map((cat) => {
                     const catEdfs = filtered.filter(
                       (e) => String(e.category || '').toLowerCase() === cat.name.toLowerCase()
                     );

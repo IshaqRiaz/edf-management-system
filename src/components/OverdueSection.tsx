@@ -3,7 +3,7 @@ import { EDF } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
 import { exportEDFsToMultiRowCSV } from '../utils/csvExport.ts';
 import { generateMergedEdfPdf } from '../utils/pdfGenerator.ts';
-import { deduplicateEdfsByNumber } from '../utils/exportHelpers.ts';
+import { filterEdfsForExport } from '../utils/exportHelpers.ts';
 import {
   AlertOctagon,
   Clock,
@@ -36,13 +36,8 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
   onMarkStatus,
   isAdmin,
 }) => {
-  // Filter only overdue unique EDFs (Received demands are NOT overdue)
-  const overdueEdfs = deduplicateEdfsByNumber(edfs).filter((item) => {
-    if (item.status === 'Received') return false;
-    if (item.status === 'Overdue' || item.isOverdue) return true;
-    const isPast = new Date(item.requiredDate).getTime() < Date.now();
-    return isPast;
-  });
+  // Filter only overdue unique EDFs via shared export helper (Received/Completed demands are NOT overdue)
+  const overdueEdfs = filterEdfsForExport(edfs, { statusFilter: 'Overdue' }).filteredEdfs;
 
   return (
     <div className="space-y-6">

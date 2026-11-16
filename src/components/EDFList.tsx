@@ -6,7 +6,14 @@ import { ReceivingProgressBar } from './ReceivingProgressBar.tsx';
 import { BarcodeScannerModal } from './BarcodeScannerModal.tsx';
 import { exportEDFsToMultiRowCSV } from '../utils/csvExport.ts';
 import { generateMergedEdfPdf } from '../utils/pdfGenerator.ts';
-import { deduplicateEdfsByNumber, countUniqueEdfsById } from '../utils/exportHelpers.ts';
+import {
+  ExportFilterType,
+  deduplicateEdfsByNumber,
+  countUniqueEdfsById,
+  filterEdfsForExport,
+  getEffectiveEdfState,
+  getExportFilterLabel,
+} from '../utils/exportHelpers.ts';
 import { useTheme } from '../context/ThemeContext.tsx';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
 import {
@@ -118,7 +125,7 @@ interface EDFListProps {
   onBulkAction: (ids: number[], action: 'mark-received' | 'delete') => void;
   onOpenCreate: () => void;
   onOpenImport?: () => void;
-  onExportCSV: (filtered: EDF[]) => void;
+  onExportCSV: (filtered: EDF[], filterLabel?: string) => void;
   isAdmin: boolean;
   initialCategory?: string;
   initialStatus?: string;
@@ -159,11 +166,12 @@ export const EDFList: React.FC<EDFListProps> = ({
       setLocalSearch(query);
     }
   };
-  type EdfTabType = 'Total' | 'Pending' | 'Received' | 'Overdue';
+  type EdfTabType = 'Total' | 'Pending' | 'Partially Received' | 'Received' | 'Overdue';
   const [activeTab, setActiveTab] = useState<EdfTabType>(() => {
     if (initialOverdueOnly || initialStatus.toLowerCase() === 'overdue') return 'Overdue';
     if (initialStatus.toLowerCase() === 'received') return 'Received';
-    if (initialStatus.toLowerCase() === 'pending' || initialStatus.toLowerCase() === 'partially received') return 'Pending';
+    if (initialStatus.toLowerCase() === 'partially received') return 'Partially Received';
+    if (initialStatus.toLowerCase() === 'pending') return 'Pending';
     return 'Total';
   });
 
@@ -214,6 +222,9 @@ export const EDFList: React.FC<EDFListProps> = ({
     } else if (tab === 'Pending') {
       setSelectedStatus('Pending');
       setOverdueOnly(false);
+    } else if (tab === 'Partially Received') {
+      setSelectedStatus('Partially Received');
+      setOverdueOnly(false);
     } else if (tab === 'Received') {
       setSelectedStatus('Received');
       setOverdueOnly(false);
@@ -223,92 +234,21 @@ export const EDFList: React.FC<EDFListProps> = ({
     }
   };
 
-  // Tab counts based on unique EDF Numbers (or category if filtered)
+  // Tab counts based on unique EDF Numbers (scoped by category)
   const tabCounts = useMemo(() => {
-    const now = Date.now();
-    const uniqueList = deduplicateEdfsByNumber(edfs);
-    let total = 0;
-    let pending = 0;
-    let received = 0;
-    let overdue = 0;
-
-    for (const item of uniqueList) {
-      if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
-        continue;
-      }
-      total++;
-      const isPast = new Date(item.requiredDate).getTime() < now;
-      const rawItems = item.items || [];
-      const totalItems = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-      const receivedItems = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-      const isItemReceived = item.status === 'Received' || (receivedItems >= totalItems && totalItems > 0);
-      const isItemOverdue = !isItemReceived && (item.status === 'Overdue' || item.isOverdue || isPast);
-
-      if (isItemReceived) {
-        received++;
-      } else if (isItemOverdue) {
-        overdue++;
-        pending++;
-      } else {
-        pending++;
-      }
-    }
-
-    return { total, pending, received, overdue };
+    return filterEdfsForExport(edfs, {
+      categoryFilter: selectedCategory,
+    }).counts;
   }, [edfs, selectedCategory]);
 
   // Retrieve unique EDF records for a specific tab (respects category, search, and date filters)
   const getTabRecords = (tab: EdfTabType): EDF[] => {
-    const now = Date.now();
-    const uniqueList = deduplicateEdfsByNumber(edfs);
-    return uniqueList.filter((item) => {
-      // Category filter
-      if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
-        return false;
-      }
-      // Search filter
-      if (search.trim()) {
-        const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
-        const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
-        const matchesAll = tokens.every((token) => {
-          return (
-            checkStr(item.edfNumber).includes(token) ||
-            checkStr(item.requesterName).includes(token) ||
-            checkStr(item.category).includes(token) ||
-            checkStr(item.materialList).includes(token) ||
-            checkStr(item.remarks).includes(token) ||
-            item.items?.some((it) => checkStr(it.itemDescription).includes(token))
-          );
-        });
-        if (!matchesAll) return false;
-      }
-      // Date filter
-      if (dateFilter !== 'all') {
-        const itemDate = new Date(item.issueDate);
-        const currentDate = new Date();
-        if (dateFilter === 'today' && itemDate.toDateString() !== currentDate.toDateString()) return false;
-        if (dateFilter === 'this-week') {
-          const oneWeekAgo = new Date(currentDate.getTime() - 7 * 24 * 3600 * 1000);
-          if (itemDate < oneWeekAgo) return false;
-        }
-        if (dateFilter === 'this-month') {
-          if (itemDate.getMonth() !== currentDate.getMonth() || itemDate.getFullYear() !== currentDate.getFullYear()) return false;
-        }
-      }
-
-      const isPast = new Date(item.requiredDate).getTime() < now;
-      const rawItems = item.items || [];
-      const totalItems = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-      const receivedItems = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-      const isItemReceived = item.status === 'Received' || (receivedItems >= totalItems && totalItems > 0);
-      const isItemOverdue = !isItemReceived && (item.status === 'Overdue' || item.isOverdue || isPast);
-
-      if (tab === 'Total') return true;
-      if (tab === 'Pending') return !isItemReceived;
-      if (tab === 'Received') return isItemReceived;
-      if (tab === 'Overdue') return isItemOverdue;
-      return true;
-    });
+    return filterEdfsForExport(edfs, {
+      statusFilter: tab,
+      categoryFilter: selectedCategory,
+      searchQuery: search,
+      dateFilter,
+    }).filteredEdfs;
   };
 
   // Export unique EDF records belonging to the tab with individual material rows preserved
@@ -316,7 +256,8 @@ export const EDFList: React.FC<EDFListProps> = ({
     e?.stopPropagation();
     const records = getTabRecords(tab);
     if (records.length === 0) return;
-    const res = exportEDFsToMultiRowCSV(records, `${tab}_EDF`);
+    const label = getExportFilterLabel({ statusFilter: tab, categoryFilter: selectedCategory });
+    const res = exportEDFsToMultiRowCSV(records, label);
     if (res.success) {
       setExportNotice(
         `Successfully exported ${res.count} unique ${tab} EDF${res.count === 1 ? '' : 's'} (${res.totalRows} individual material rows grouped) to CSV!`
@@ -330,7 +271,8 @@ export const EDFList: React.FC<EDFListProps> = ({
     e?.stopPropagation();
     const records = getTabRecords(tab);
     if (records.length === 0) return;
-    const res = generateMergedEdfPdf(records, `${tab}_EDF`);
+    const label = getExportFilterLabel({ statusFilter: tab, categoryFilter: selectedCategory });
+    const res = generateMergedEdfPdf(records, label);
     if (res.success) {
       setExportNotice(
         `Successfully exported ${res.count} unique ${tab} EDF${res.count === 1 ? '' : 's'} (${res.totalRows} material rows grouped) to PDF!`
@@ -339,37 +281,28 @@ export const EDFList: React.FC<EDFListProps> = ({
     }
   };
 
-  // Filtered EDFs
+  // Filtered EDFs for on-screen table display
   const filteredEdfs = useMemo(() => {
+    const nowMs = Date.now();
     return edfs.filter((item) => {
       // Category filter
       if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
         return false;
       }
 
+      const state = getEffectiveEdfState(item, nowMs);
+
       // Status filter
       if (selectedStatus !== 'All') {
         const selLower = selectedStatus.toLowerCase();
         if (selLower === 'overdue') {
-          if (item.status !== 'Overdue' && !item.isOverdue) return false;
+          if (!state.isOverdue) return false;
         } else if (selLower === 'partially received') {
-          const rawItems = item.items || [];
-          const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-          const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-          const isPartial = item.status === 'Partially Received' || (receivedCount > 0 && receivedCount < totalCount);
-          if (!isPartial) return false;
+          if (!state.isPartiallyReceived) return false;
         } else if (selLower === 'received') {
-          const rawItems = item.items || [];
-          const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-          const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-          const isReceived = item.status === 'Received' || (receivedCount >= totalCount && totalCount > 0);
-          if (!isReceived) return false;
+          if (!state.isReceived) return false;
         } else if (selLower === 'pending') {
-          const rawItems = item.items || [];
-          const totalCount = item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-          const receivedCount = item.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-          const isPending = (item.status === 'Pending' || item.status === 'Overdue') && receivedCount === 0;
-          if (!isPending) return false;
+          if (!state.isPending) return false;
         } else if (item.status.toLowerCase() !== selLower) {
           return false;
         }
@@ -408,10 +341,28 @@ export const EDFList: React.FC<EDFListProps> = ({
     });
   }, [edfs, selectedCategory, selectedStatus, overdueOnly, search, dateFilter, dimNonMatching]);
 
-  // Unique EDF records matching current filter (counted by unique EDF ID / Number)
+  // Export-scoped unique EDF records strictly matching ALL active filters (excluding dimmed non-matching items)
+  const activeExportStatusFilter: ExportFilterType = overdueOnly
+    ? 'Overdue'
+    : selectedStatus === 'All'
+    ? 'Total'
+    : (selectedStatus as ExportFilterType);
+
   const uniqueFilteredEdfs = useMemo(() => {
-    return deduplicateEdfsByNumber(filteredEdfs);
-  }, [filteredEdfs]);
+    return filterEdfsForExport(edfs, {
+      statusFilter: activeExportStatusFilter,
+      categoryFilter: selectedCategory,
+      searchQuery: search,
+      dateFilter,
+    }).filteredEdfs;
+  }, [edfs, activeExportStatusFilter, selectedCategory, search, dateFilter]);
+
+  const activeExportFilterLabel = useMemo(() => {
+    return getExportFilterLabel({
+      statusFilter: activeExportStatusFilter,
+      categoryFilter: selectedCategory,
+    });
+  }, [activeExportStatusFilter, selectedCategory]);
 
   const uniqueFilteredCountById = useMemo(() => {
     return countUniqueEdfsById(uniqueFilteredEdfs);
@@ -616,7 +567,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                     ? 'bg-amber-500 text-white shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
-                title="Filter by Pending & Partially Received EDFs"
+                title="Filter by Pending EDFs (0 items received)"
               >
                 <Clock className="w-3.5 h-3.5" />
                 <span>Pending EDF</span>
@@ -637,6 +588,46 @@ export const EDFList: React.FC<EDFListProps> = ({
                 className="ml-1 p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-30"
                 title="Export all Pending EDF records (with separate material rows) to CSV"
                 aria-label="Export Pending EDF tab records to CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* 2b. Partially Received EDF Tab */}
+            <div className={`inline-flex items-center rounded-2xl p-1 border transition-all ${
+              activeTab === 'Partially Received'
+                ? 'bg-sky-50/80 dark:bg-sky-950/50 border-sky-200 dark:border-sky-800 shadow-xs'
+                : 'bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-800'
+            }`}>
+              <button
+                type="button"
+                onClick={() => handleSwitchTab('Partially Received')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                  activeTab === 'Partially Received'
+                    ? 'bg-sky-600 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Filter by Partially Received EDFs"
+              >
+                <PackageCheck className="w-3.5 h-3.5" />
+                <span>Partially Received EDF</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'Partially Received'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300'
+                }`}>
+                  {tabCounts.partiallyReceived}
+                </span>
+              </button>
+
+              {/* Inside Tab Export Button */}
+              <button
+                type="button"
+                onClick={(e) => handleExportTab('Partially Received', e)}
+                disabled={tabCounts.partiallyReceived === 0}
+                className="ml-1 p-1.5 rounded-lg text-slate-500 hover:text-sky-600 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors cursor-pointer disabled:opacity-30"
+                title="Export all Partially Received EDF records (with separate material rows) to CSV"
+                aria-label="Export Partially Received EDF tab records to CSV"
               >
                 <Download className="w-3.5 h-3.5" />
               </button>
@@ -813,7 +804,7 @@ export const EDFList: React.FC<EDFListProps> = ({
             </button>
 
             <button
-              onClick={() => onExportCSV(uniqueFilteredEdfs)}
+              onClick={() => onExportCSV(uniqueFilteredEdfs, activeExportFilterLabel)}
               disabled={uniqueFilteredEdfs.length === 0}
               className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-40"
               title={`Export ${uniqueFilteredEdfs.length} matching unique EDF${uniqueFilteredEdfs.length === 1 ? '' : 's'} to CSV`}
@@ -823,7 +814,7 @@ export const EDFList: React.FC<EDFListProps> = ({
             </button>
 
             <button
-              onClick={() => generateMergedEdfPdf(uniqueFilteredEdfs, `${activeTab}_Filtered`)}
+              onClick={() => generateMergedEdfPdf(uniqueFilteredEdfs, activeExportFilterLabel)}
               disabled={uniqueFilteredEdfs.length === 0}
               className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-rose-200 dark:border-rose-900 hover:border-rose-300 bg-rose-50/70 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-40"
               title={`Export ${uniqueFilteredEdfs.length} matching unique EDF${uniqueFilteredEdfs.length === 1 ? '' : 's'} to PDF with vertically merged EDF Numbers`}
@@ -935,7 +926,24 @@ export const EDFList: React.FC<EDFListProps> = ({
             <span className="text-xs font-semibold text-slate-400">Status:</span>
             <select
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedStatus(val);
+                if (val === 'All') {
+                  setActiveTab('Total');
+                  setOverdueOnly(false);
+                } else if (val === 'Overdue') {
+                  setActiveTab('Overdue');
+                  setOverdueOnly(true);
+                } else if (
+                  val === 'Pending' ||
+                  val === 'Partially Received' ||
+                  val === 'Received'
+                ) {
+                  setActiveTab(val);
+                  setOverdueOnly(false);
+                }
+              }}
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="All">All Statuses</option>
@@ -966,7 +974,17 @@ export const EDFList: React.FC<EDFListProps> = ({
             <input
               type="checkbox"
               checked={overdueOnly}
-              onChange={(e) => setOverdueOnly(e.target.checked)}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setOverdueOnly(checked);
+                if (checked) {
+                  setActiveTab('Overdue');
+                  setSelectedStatus('Overdue');
+                } else if (selectedStatus === 'Overdue') {
+                  setActiveTab('Total');
+                  setSelectedStatus('All');
+                }
+              }}
               className="rounded text-red-600 focus:ring-red-500 w-3.5 h-3.5 accent-red-500"
             />
             <span className="text-xs font-semibold text-red-600 dark:text-red-400">
@@ -984,6 +1002,7 @@ export const EDFList: React.FC<EDFListProps> = ({
               onClick={() => {
                 setSelectedCategory('All');
                 setSelectedStatus('All');
+                setActiveTab('Total');
                 setOverdueOnly(false);
                 setSearch('');
                 setDateFilter('all');

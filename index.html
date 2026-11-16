@@ -25,16 +25,18 @@
       (function() {
         var originalConsoleError = console.error;
         console.error = function() {
-          var msg = arguments[0];
-          if (typeof msg === 'string' && (
-            msg.indexOf('Expected static flag was missing') !== -1 ||
-            msg.indexOf('WebSocket closed without opened') !== -1 ||
-            msg.indexOf('WebSocket connection') !== -1
-          )) {
-            return;
-          }
-          if (msg && msg.message && typeof msg.message === 'string' && msg.message.indexOf('WebSocket closed without opened') !== -1) {
-            return;
+          for (var i = 0; i < arguments.length; i++) {
+            var arg = arguments[i];
+            var text = typeof arg === 'string'
+              ? arg
+              : (arg && typeof arg.message === 'string' ? arg.message : '');
+            if (text && (
+              text.indexOf('Expected static flag was missing') !== -1 ||
+              text.indexOf('WebSocket closed without opened') !== -1 ||
+              text.indexOf('WebSocket connection') !== -1
+            )) {
+              return;
+            }
           }
           originalConsoleError.apply(console, arguments);
         };

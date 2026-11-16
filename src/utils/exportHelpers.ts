@@ -37,8 +37,12 @@ export interface UniqueEdfCounts {
 
 export interface ExportFilterOptions {
   statusFilter?: ExportFilterType;
+  statusFilters?: ExportFilterType[];
   categoryFilter?: string;
   specificEdfNumber?: string;
+  searchQuery?: string;
+  dateFilter?: 'all' | 'today' | 'this-week' | 'this-month' | string;
+  nowMs?: number;
 }
 
 /**
@@ -220,6 +224,7 @@ export function deduplicateEdfsByNumber(edfs: EDF[]): EDF[] {
       }
       if (recCount >= totCount && totCount > 0) {
         existing.status = 'Received';
+        existing.isOverdue = false;
       } else if (recCount > 0) {
         existing.status = 'Partially Received';
       }
@@ -249,9 +254,8 @@ export function countUniqueEdfsById(edfs: EDF[]): number {
 /**
  * Counts EDFs strictly by unique EDF Number (10 material items under EDF 3265 = 1 EDF).
  */
-export function countUniqueEdfStats(edfs: EDF[]): UniqueEdfCounts {
+export function countUniqueEdfStats(edfs: EDF[], nowMs: number = Date.now()): UniqueEdfCounts {
   const uniqueEdfs = deduplicateEdfsByNumber(edfs);
-  const nowMs = Date.now();
 
   let total = 0;
   let pending = 0;
@@ -284,9 +288,81 @@ export function countUniqueEdfStats(edfs: EDF[]): UniqueEdfCounts {
   };
 }
 
+function matchesSearchQuery(edf: EDF, searchQuery: string): boolean {
+  const trimmed = searchQuery.trim();
+  if (!trimmed) return true;
+  const tokens = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
+  const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
+
+  return tokens.every((token) => {
+    return (
+      checkStr(edf.edfNumber).includes(token) ||
+      checkStr(edf.requesterName).includes(token) ||
+      checkStr(edf.category).includes(token) ||
+      checkStr(edf.materialList).includes(token) ||
+      checkStr(edf.unit).includes(token) ||
+      checkStr(edf.remarks).includes(token) ||
+      Boolean(
+        edf.items?.some((it) => {
+          const itDesc = checkStr(it.itemDescription);
+          const itUnit = checkStr(it.unit);
+          const itRemarks = checkStr(it.remarks || it.justification);
+          return itDesc.includes(token) || itUnit.includes(token) || itRemarks.includes(token);
+        })
+      )
+    );
+  });
+}
+
+function matchesDateFilter(edf: EDF, dateFilter: string, nowMs: number): boolean {
+  if (!dateFilter || dateFilter === 'all') return true;
+  const itemDate = new Date(edf.issueDate);
+  if (Number.isNaN(itemDate.getTime())) return false;
+  const nowDate = new Date(nowMs);
+  if (dateFilter === 'today') {
+    return itemDate.toDateString() === nowDate.toDateString();
+  }
+  if (dateFilter === 'this-week') {
+    const oneWeekAgo = nowMs - 7 * 24 * 3600 * 1000;
+    return itemDate.getTime() >= oneWeekAgo;
+  }
+  if (dateFilter === 'this-month') {
+    return (
+      itemDate.getMonth() === nowDate.getMonth() &&
+      itemDate.getFullYear() === nowDate.getFullYear()
+    );
+  }
+  return true;
+}
+
+function matchesSingleStatusFilter(
+  edf: EDF,
+  filterType: ExportFilterType,
+  nowMs: number,
+  matchesSpecific: (e: EDF) => boolean
+): boolean {
+  const state = getEffectiveEdfState(edf, nowMs);
+  switch (filterType) {
+    case 'Total':
+      return true;
+    case 'Pending':
+      return state.isPending;
+    case 'Partially Received':
+      return state.isPartiallyReceived;
+    case 'Received':
+      return state.isReceived;
+    case 'Overdue':
+      return state.isOverdue;
+    case 'Specific':
+      return matchesSpecific(edf);
+    default:
+      return true;
+  }
+}
+
 /**
- * Filters unique EDFs according to statusFilter, categoryFilter, and specificEdfNumber.
- * Never mutates input EDF records.
+ * Filters unique EDFs according to statusFilter(s), categoryFilter, specificEdfNumber, searchQuery, and dateFilter.
+ * Never mutates input EDF records and always deduplicates by unique EDF Number.
  */
 export function filterEdfsForExport(
   edfs: EDF[],
@@ -299,27 +375,40 @@ export function filterEdfsForExport(
 } {
   const {
     statusFilter = 'Total',
+    statusFilters,
     categoryFilter = 'All',
     specificEdfNumber = '',
+    searchQuery = '',
+    dateFilter = 'all',
+    nowMs = Date.now(),
   } = options;
 
   const uniqueAllEdfs = deduplicateEdfsByNumber(edfs);
 
-  // Category filter applies before status counts if selected
-  const categoryScoped =
-    categoryFilter && categoryFilter !== 'All'
-      ? uniqueAllEdfs.filter(
-          (e) => String(e.category || '').trim().toLowerCase() === categoryFilter.trim().toLowerCase()
-        )
-      : uniqueAllEdfs;
+  // Scope by category, search, and date before calculating status bucket counts
+  const scoped = uniqueAllEdfs.filter((edf) => {
+    if (
+      categoryFilter &&
+      categoryFilter !== 'All' &&
+      String(edf.category || '').trim().toLowerCase() !== categoryFilter.trim().toLowerCase()
+    ) {
+      return false;
+    }
+    if (searchQuery && !matchesSearchQuery(edf, searchQuery)) {
+      return false;
+    }
+    if (dateFilter && dateFilter !== 'all' && !matchesDateFilter(edf, dateFilter, nowMs)) {
+      return false;
+    }
+    return true;
+  });
 
-  const counts = countUniqueEdfStats(categoryScoped);
-  const nowMs = Date.now();
+  const counts = countUniqueEdfStats(scoped, nowMs);
   const specificNorm = normalizeEdfNumber(specificEdfNumber);
 
   const hasExactSpecificMatch =
     Boolean(specificNorm) &&
-    categoryScoped.some((e) => normalizeEdfNumber(e.edfNumber) === specificNorm);
+    scoped.some((e) => normalizeEdfNumber(e.edfNumber) === specificNorm);
 
   const matchesSpecificEdf = (edf: EDF): boolean => {
     if (!specificNorm) return true;
@@ -327,33 +416,22 @@ export function filterEdfsForExport(
     return hasExactSpecificMatch ? norm === specificNorm : norm.includes(specificNorm);
   };
 
-  const filteredEdfs = categoryScoped.filter((edf) => {
-    const state = getEffectiveEdfState(edf, nowMs);
+  const activeFilters =
+    statusFilters && statusFilters.length > 0 ? statusFilters : [statusFilter];
 
-    // If Specific EDF Number filter is active or entered
-    if (statusFilter === 'Specific') {
-      return matchesSpecificEdf(edf);
-    }
-
-    // Even when another tab is active, if specificEdfNumber is explicitly entered, match it too
+  const filteredEdfs = scoped.filter((edf) => {
+    // Specific EDF Number takes precedence or narrows any active status selection
     if (specificNorm && !matchesSpecificEdf(edf)) {
       return false;
     }
 
-    switch (statusFilter) {
-      case 'Total':
-        return true;
-      case 'Pending':
-        return state.isPending;
-      case 'Partially Received':
-        return state.isPartiallyReceived;
-      case 'Received':
-        return state.isReceived;
-      case 'Overdue':
-        return state.isOverdue;
-      default:
-        return true;
+    if (activeFilters.includes('Total')) {
+      return true;
     }
+
+    return activeFilters.some((flt) =>
+      matchesSingleStatusFilter(edf, flt, nowMs, matchesSpecificEdf)
+    );
   });
 
   const totalMaterialItems = filteredEdfs.reduce(
@@ -373,24 +451,47 @@ export function filterEdfsForExport(
  * Returns a human-readable filter label for filenames & report headers.
  */
 export function getExportFilterLabel(options: ExportFilterOptions = {}): string {
-  const { statusFilter = 'Total', specificEdfNumber = '' } = options;
-  if (statusFilter === 'Specific') {
-    return specificEdfNumber.trim()
-      ? `EDF_${specificEdfNumber.trim()}`
-      : 'Specific_EDF';
+  const {
+    statusFilter = 'Total',
+    statusFilters,
+    categoryFilter = 'All',
+    specificEdfNumber = '',
+  } = options;
+
+  let baseLabel: string;
+  if (statusFilters && statusFilters.length > 1) {
+    baseLabel = statusFilters.map((s) => s.replace(/\s+/g, '_')).join('+');
+  } else {
+    const single = statusFilters && statusFilters.length === 1 ? statusFilters[0] : statusFilter;
+    if (single === 'Specific') {
+      baseLabel = specificEdfNumber.trim()
+        ? `EDF_${specificEdfNumber.trim()}`
+        : 'Specific_EDF';
+    } else {
+      switch (single) {
+        case 'Total':
+          baseLabel = 'Total_EDF';
+          break;
+        case 'Pending':
+          baseLabel = 'Pending_EDF';
+          break;
+        case 'Partially Received':
+          baseLabel = 'Partially_Received_EDF';
+          break;
+        case 'Received':
+          baseLabel = 'Received_EDF';
+          break;
+        case 'Overdue':
+          baseLabel = 'Overdue_EDF';
+          break;
+        default:
+          baseLabel = 'Total_EDF';
+      }
+    }
   }
-  switch (statusFilter) {
-    case 'Total':
-      return 'Total_EDF';
-    case 'Pending':
-      return 'Pending_EDF';
-    case 'Partially Received':
-      return 'Partially_Received_EDF';
-    case 'Received':
-      return 'Received_EDF';
-    case 'Overdue':
-      return 'Overdue_EDF';
-    default:
-      return 'Total_EDF';
+
+  if (categoryFilter && categoryFilter !== 'All') {
+    return `${baseLabel}_${categoryFilter.trim().replace(/\s+/g, '_')}`;
   }
+  return baseLabel;
 }
