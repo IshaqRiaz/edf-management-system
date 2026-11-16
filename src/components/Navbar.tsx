@@ -1,9 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { useTheme, AccentColor } from '../context/ThemeContext.tsx';
+import { useTheme, COLOR_THEMES } from '../context/ThemeContext.tsx';
 import { EDF } from '../types.ts';
 import { calculateLiveTimer } from '../utils/timer.ts';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
+import { getEffectiveEdfState } from '../utils/exportHelpers.ts';
+import { searchEdfsGlobally } from '../utils/searchHelpers.ts';
+import { HighlightText } from './HighlightText.tsx';
 import { PWAInstallButton } from './PWAInstallButton.tsx';
 import { OfflineSyncBar } from './OfflineSyncBar.tsx';
 import {
@@ -23,13 +26,13 @@ import {
   Clock,
   AlertTriangle,
   ArrowRight,
-  ExternalLink,
-  CheckCircle2,
   PackageCheck,
   Package,
   History,
   CheckCheck,
   Trash2,
+  Search,
+  X,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -41,6 +44,7 @@ interface NavbarProps {
   onNavigateToAuditLog?: () => void;
   edfs?: EDF[];
   onSelectEdf?: (edf: EDF) => void;
+  onViewAllSearchResults?: (query: string) => void;
   pendingSyncCount?: number;
   isSyncing?: boolean;
   onSyncNow?: () => void;
@@ -71,6 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateToAuditLog,
   edfs = [],
   onSelectEdf,
+  onViewAllSearchResults,
   pendingSyncCount = 0,
   isSyncing = false,
   onSyncNow,
@@ -80,6 +85,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showPaletteMenu, setShowPaletteMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  // Global EDF search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+
+  const desktopSearchRef = useRef<HTMLDivElement>(null);
+  const mobileSearchRef = useRef<HTMLDivElement>(null);
+  const desktopInputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
 
   // Local notification history array
   const [notifications, setNotifications] = useState<StatusNotification[]>(() => {
@@ -110,14 +126,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   });
 
-  const accentOptions: { id: AccentColor; label: string; bg: string }[] = [
-    { id: 'grapefruit', label: 'Grapefruit Coral (Default)', bg: 'bg-rose-500' },
-    { id: 'indigo', label: 'Indigo Modern', bg: 'bg-indigo-600' },
-    { id: 'slate', label: 'Slate Executive', bg: 'bg-slate-700' },
-    { id: 'blue', label: 'Corporate Blue', bg: 'bg-blue-600' },
-    { id: 'teal', label: 'Teal Modern', bg: 'bg-teal-600' },
-    { id: 'amber', label: 'Amber Accent', bg: 'bg-amber-600' },
-  ];
+  const accentOptions = COLOR_THEMES.map((opt) => ({
+    id: opt.id,
+    label: opt.id === 'grapefruit' ? `${opt.label} (Default)` : opt.label,
+    bg: opt.swatchClass,
+  }));
 
   // Calculate live overdue count and due within 24 hours for live watch card
   const liveStats = useMemo(() => {
@@ -353,14 +366,414 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
+  // Global search results & quick recent records
+  const trimmedSearch = searchQuery.trim();
+  const searchResults = useMemo(
+    () => searchEdfsGlobally(edfs, searchQuery, 8),
+    [edfs, searchQuery]
+  );
+
+  const recentQuickEdfs = useMemo(() => {
+    return [...edfs].sort((a, b) => (b.id ?? 0) - (a.id ?? 0)).slice(0, 4);
+  }, [edfs]);
+
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [searchQuery]);
+
+  // Global keyboard shortcuts: "/" or Cmd/Ctrl + K focuses Navbar search
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+
+      const isCmdK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
+      const isSlash = !isTypingTarget && e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey;
+
+      if (isCmdK || isSlash) {
+        e.preventDefault();
+        setShowNotifications(false);
+        setShowPaletteMenu(false);
+        setShowProfileMenu(false);
+        setIsSearchOpen(true);
+
+        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+          setIsMobileSearchOpen(true);
+          requestAnimationFrame(() => mobileInputRef.current?.focus());
+        } else {
+          desktopInputRef.current?.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  // Close search dropdown on outside click
+  useEffect(() => {
+    if (!isSearchOpen && !isMobileSearchOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const inDesktop = desktopSearchRef.current?.contains(target);
+      const inMobile = mobileSearchRef.current?.contains(target);
+      if (!inDesktop && !inMobile) {
+        setIsSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isSearchOpen, isMobileSearchOpen]);
+
+  const handleSelectSearchEdf = async (edf: EDF) => {
+    setIsSearchOpen(false);
+    setIsMobileSearchOpen(false);
+    if (onSelectEdf) {
+      onSelectEdf(edf);
+    }
+
+    // Fetch fresh EDF details in background so items & history are completely up to date
+    try {
+      const token = localStorage.getItem('edf_auth_token');
+      if (!token) return;
+      const res = await fetch(`/api/edfs/${edf.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok && onSelectEdf) {
+        const fullEdf = await res.json();
+        onSelectEdf(fullEdf);
+      }
+    } catch {
+      // Optimistically opened local EDF already
+    }
+  };
+
+  const handleViewAllResults = () => {
+    if (!trimmedSearch || !onViewAllSearchResults) return;
+    setIsSearchOpen(false);
+    setIsMobileSearchOpen(false);
+    onViewAllSearchResults(trimmedSearch);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const activeListCount = trimmedSearch ? searchResults.matches.length : recentQuickEdfs.length;
+    const hasViewAllRow = Boolean(trimmedSearch && searchResults.totalCount > 0 && onViewAllSearchResults);
+    const maxIndex = hasViewAllRow ? activeListCount : Math.max(0, activeListCount - 1);
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIsSearchOpen(true);
+      if (activeListCount > 0) {
+        setHighlightedIndex((prev) => (prev < maxIndex ? prev + 1 : 0));
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIsSearchOpen(true);
+      if (activeListCount > 0) {
+        setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : maxIndex));
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (trimmedSearch) {
+        if (e.shiftKey || (hasViewAllRow && highlightedIndex === activeListCount)) {
+          handleViewAllResults();
+          return;
+        }
+        const chosen = searchResults.matches[highlightedIndex]?.edf || searchResults.matches[0]?.edf;
+        if (chosen) {
+          handleSelectSearchEdf(chosen);
+        }
+      } else {
+        const chosen = recentQuickEdfs[highlightedIndex];
+        if (chosen) {
+          handleSelectSearchEdf(chosen);
+        }
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsSearchOpen(false);
+      setIsMobileSearchOpen(false);
+      e.currentTarget.blur();
+    }
+  };
+
+  const getStatusTextMeta = (edf: EDF) => {
+    const state = getEffectiveEdfState(edf);
+    switch (state.effectiveStatus) {
+      case 'Received':
+        return {
+          label: 'Received',
+          className: 'text-emerald-700 dark:text-emerald-400',
+          icon: <PackageCheck className="w-3.5 h-3.5 shrink-0" />,
+        };
+      case 'Partially Received':
+        return {
+          label: `Partial (${state.receivedItems}/${state.totalItems})`,
+          className: 'text-sky-700 dark:text-sky-400',
+          icon: <Package className="w-3.5 h-3.5 shrink-0" />,
+        };
+      case 'Overdue':
+        return {
+          label: 'Overdue',
+          className: 'text-red-700 dark:text-red-400',
+          icon: <AlertTriangle className="w-3.5 h-3.5 shrink-0" />,
+        };
+      case 'Pending':
+      default:
+        return {
+          label: 'Pending',
+          className: 'text-amber-700 dark:text-amber-400',
+          icon: <Clock className="w-3.5 h-3.5 shrink-0" />,
+        };
+    }
+  };
+
+  const renderSearchDropdown = () => {
+    if (!isSearchOpen) return null;
+    const idTokenQuery = trimmedSearch.replace(/^#/, '');
+
+    return (
+      <div
+        role="listbox"
+        aria-label="EDF search results"
+        className="absolute left-0 right-0 top-full mt-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 overflow-hidden"
+      >
+        {trimmedSearch ? (
+          <>
+            {/* Search Results Summary Header */}
+            <div className="px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/70 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
+                {searchResults.totalCount === 0
+                  ? 'No matching EDF records'
+                  : `${searchResults.totalCount} matching EDF${searchResults.totalCount === 1 ? '' : 's'}`}
+              </span>
+              {searchResults.totalCount > 0 && onViewAllSearchResults && (
+                <button
+                  type="button"
+                  onClick={handleViewAllResults}
+                  className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <span>Filter in EDF List</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {searchResults.matches.length === 0 ? (
+              <div className="py-8 px-4 text-center">
+                <div className="w-10 h-10 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mb-2">
+                  <Search className="w-4 h-4" />
+                </div>
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  No EDFs found for &ldquo;{trimmedSearch}&rdquo;
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
+                  Try searching by EDF number, numeric ID (#12), requester name, or material description.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    desktopInputRef.current?.focus();
+                    mobileInputRef.current?.focus();
+                  }}
+                  className="mt-3 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                >
+                  Clear search
+                </button>
+              </div>
+            ) : (
+              <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
+                {searchResults.matches.map((match, idx) => {
+                  const { edf, matchingItems, matchedBy } = match;
+                  const statusMeta = getStatusTextMeta(edf);
+                  const isActive = idx === highlightedIndex;
+                  const primaryItem = matchingItems[0];
+                  const extraMatchCount = matchingItems.length > 1 ? matchingItems.length - 1 : 0;
+                  const totalItems = edf.totalItemsCount ?? (edf.items?.length || 1);
+
+                  return (
+                    <button
+                      key={edf.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isActive}
+                      onMouseEnter={() => setHighlightedIndex(idx)}
+                      onClick={() => handleSelectSearchEdf(edf)}
+                      className={`w-full text-left px-3.5 py-2.5 min-h-[44px] transition-colors cursor-pointer flex flex-col gap-1 ${
+                        isActive
+                          ? 'bg-rose-50/80 dark:bg-slate-800/90'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                      }`}
+                    >
+                      {/* Row 1: EDF Number, #ID, and semantic status */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono font-bold text-xs text-slate-900 dark:text-white tabular-nums truncate">
+                            <HighlightText text={edf.edfNumber} query={trimmedSearch} />
+                          </span>
+                          <span className="font-mono text-[11px] text-slate-400 dark:text-slate-500 tabular-nums shrink-0">
+                            #
+                            <HighlightText
+                              text={String(edf.id)}
+                              query={/^\d+$/.test(idTokenQuery) ? idTokenQuery : ''}
+                            />
+                          </span>
+                        </div>
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap shrink-0 ${statusMeta.className}`}>
+                          {statusMeta.icon}
+                          <span>{statusMeta.label}</span>
+                        </span>
+                      </div>
+
+                      {/* Row 2: Unboxed metadata (Requester · Category · Items count) */}
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 truncate">
+                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                          <HighlightText text={edf.requesterName || 'Unknown requester'} query={trimmedSearch} />
+                        </span>
+                        <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">·</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
+                          {edf.category || 'General'}
+                        </span>
+                        <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">·</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
+                          {totalItems} item{totalItems === 1 ? '' : 's'}
+                        </span>
+                      </div>
+
+                      {/* Row 3: Matching material item description preview */}
+                      {primaryItem ? (
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                          <span className="truncate">
+                            Material:{' '}
+                            <span className="text-slate-700 dark:text-slate-200 font-medium">
+                              <HighlightText text={primaryItem.itemDescription} query={trimmedSearch} />
+                            </span>
+                            <span className="ml-1 font-mono tabular-nums text-slate-400 dark:text-slate-500">
+                              ({primaryItem.quantity} {primaryItem.unit})
+                            </span>
+                          </span>
+                          {extraMatchCount > 0 && (
+                            <span className="text-[11px] font-medium text-rose-600 dark:text-rose-400 whitespace-nowrap shrink-0 tabular-nums">
+                              +{extraMatchCount} more
+                            </span>
+                          )}
+                        </div>
+                      ) : matchedBy.material && edf.materialList ? (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          Material:{' '}
+                          <span className="text-slate-700 dark:text-slate-200 font-medium">
+                            <HighlightText text={edf.materialList} query={trimmedSearch} />
+                          </span>
+                        </div>
+                      ) : edf.items && edf.items.length > 0 ? (
+                        <div className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                          {edf.items[0].itemDescription}
+                          {edf.items.length > 1 ? ` · +${edf.items.length - 1} more items` : ''}
+                        </div>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Footer: Jump to full filtered list */}
+            {searchResults.totalCount > 0 && onViewAllSearchResults && (
+              <button
+                type="button"
+                onMouseEnter={() => setHighlightedIndex(searchResults.matches.length)}
+                onClick={handleViewAllResults}
+                className={`w-full px-3.5 py-2.5 border-t border-slate-100 dark:border-slate-800 text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                  highlightedIndex === searchResults.matches.length
+                    ? 'bg-rose-50 dark:bg-slate-800 text-rose-700 dark:text-rose-300'
+                    : 'bg-slate-50/70 dark:bg-slate-950/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50/60 dark:hover:bg-slate-800/70'
+                }`}
+              >
+                <span className="tabular-nums">
+                  View all {searchResults.totalCount} matching record{searchResults.totalCount === 1 ? '' : 's'} in EDF List
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="px-3.5 py-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-950/70 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                Quick Jump — Recent EDFs
+              </span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                Search by ID, requester, or material
+              </span>
+            </div>
+
+            {recentQuickEdfs.length === 0 ? (
+              <div className="py-6 px-4 text-center text-xs text-slate-400 dark:text-slate-500">
+                No EDF records loaded yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {recentQuickEdfs.map((edf, idx) => {
+                  const statusMeta = getStatusTextMeta(edf);
+                  const isActive = idx === highlightedIndex;
+                  const totalItems = edf.totalItemsCount ?? (edf.items?.length || 1);
+
+                  return (
+                    <button
+                      key={edf.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isActive}
+                      onMouseEnter={() => setHighlightedIndex(idx)}
+                      onClick={() => handleSelectSearchEdf(edf)}
+                      className={`w-full text-left px-3.5 py-2.5 min-h-[44px] transition-colors cursor-pointer flex items-center justify-between gap-3 ${
+                        isActive
+                          ? 'bg-rose-50/80 dark:bg-slate-800/90'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-slate-900 dark:text-white tabular-nums">
+                            {edf.edfNumber}
+                          </span>
+                          <span className="font-mono text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+                            #{edf.id}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          {edf.requesterName} · {edf.category} · {totalItems} item{totalItems === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap shrink-0 ${statusMeta.className}`}>
+                        {statusMeta.icon}
+                        <span>{statusMeta.label}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-rose-100 dark:border-slate-800 transition-colors shadow-xs">
-      <div className="px-3 sm:px-4 lg:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
+    <header className="sticky top-0 z-30 w-full max-w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-rose-100 dark:border-slate-800 transition-colors shadow-xs">
+      <div className="px-2.5 sm:px-4 lg:px-6 h-16 flex items-center justify-between gap-1.5 sm:gap-4 w-full max-w-full">
         {/* Left side: Navigation Toggle & Brand */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1 sm:flex-initial">
           <button
             onClick={onToggleSidebar}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer border ${
+            className={`flex items-center gap-1.5 px-2 py-1.5 sm:px-2.5 rounded-xl transition-all cursor-pointer border whitespace-nowrap shrink-0 ${
               isSidebarOpen
                 ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-900 text-rose-700 dark:text-rose-300 shadow-xs'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-rose-50/70 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800'
@@ -374,27 +787,99 @@ export const Navbar: React.FC<NavbarProps> = ({
             </span>
           </button>
 
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-500 via-rose-600 to-amber-500 text-white flex items-center justify-center shadow-md shadow-rose-500/25 font-bold">
-              <Sparkles className="w-5 h-5" />
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-rose-500 via-rose-600 to-amber-500 text-white flex items-center justify-center shadow-md shadow-rose-500/25 font-bold shrink-0">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-slate-900 dark:text-white tracking-tight text-base sm:text-lg">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-extrabold text-slate-900 dark:text-white tracking-tight text-sm sm:text-lg truncate block">
                   EDF Management
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 hidden md:block">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 hidden xl:block whitespace-nowrap">
                 Employee Demand Form Control Center
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right side: Live Delivery Watch, Notifications, Theme Toggle, Palette, Profile */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Center: Global EDF Search Bar (Desktop & Tablet) */}
+        <div ref={desktopSearchRef} className="hidden md:flex flex-1 min-w-0 max-w-md xl:max-w-lg mx-1 sm:mx-2 relative">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              ref={desktopInputRef}
+              type="text"
+              value={searchQuery}
+              onFocus={() => {
+                setIsSearchOpen(true);
+                setShowNotifications(false);
+                setShowPaletteMenu(false);
+                setShowProfileMenu(false);
+              }}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearchOpen(true);
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search EDF ID, requester, or material..."
+              aria-label="Global search for EDFs by ID, requester name, or material description"
+              aria-expanded={isSearchOpen}
+              className="w-full h-10 pl-9 pr-16 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-700/80 focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-400 dark:focus:border-rose-500 transition-colors"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  desktopInputRef.current?.focus();
+                }}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="hidden lg:inline-flex items-center px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[10px] font-mono text-slate-400 dark:text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              >
+                /
+              </span>
+            )}
+          </div>
+          {renderSearchDropdown()}
+        </div>
+
+        {/* Right side: Mobile Search Trigger, Live Delivery Watch, Notifications, Theme Toggle, Palette, Profile */}
+        <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+          {/* Mobile Global Search Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              const next = !isMobileSearchOpen;
+              setIsMobileSearchOpen(next);
+              setIsSearchOpen(next);
+              setShowNotifications(false);
+              setShowPaletteMenu(false);
+              setShowProfileMenu(false);
+              if (next) {
+                requestAnimationFrame(() => mobileInputRef.current?.focus());
+              }
+            }}
+            aria-label="Toggle EDF search"
+            aria-expanded={isMobileSearchOpen}
+            className={`md:hidden p-1.5 sm:p-2 rounded-xl border transition-colors cursor-pointer ${
+              isMobileSearchOpen
+                ? 'bg-rose-50 dark:bg-slate-800 border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400'
+                : 'text-slate-700 dark:text-slate-200 hover:bg-rose-50/70 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800'
+            }`}
+          >
+            <Search className="w-4 h-4" />
+          </button>
           {/* LIVE DELIVERY WATCH CARD (Real-time Overdue and Due in 24h) */}
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-50 via-pink-50/50 to-amber-50 dark:from-rose-950/40 dark:via-slate-900 dark:to-amber-950/30 border border-rose-200/90 dark:border-rose-900/60 shadow-xs">
+          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-50 via-pink-50/50 to-amber-50 dark:from-rose-950/40 dark:via-slate-900 dark:to-amber-950/30 border border-rose-200/90 dark:border-rose-900/60 shadow-xs">
             <div className="flex items-center gap-1.5 pr-2 border-r border-rose-200 dark:border-rose-800/80">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
@@ -437,8 +922,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             onSyncNow={onSyncNow}
           />
 
-          {/* PWA Install Button */}
-          <PWAInstallButton variant="header" />
+          {/* PWA Install Button (available in Sidebar on mobile <sm to keep top header within 320px) */}
+          <div className="hidden sm:flex items-center">
+            <PWAInstallButton variant="header" />
+          </div>
 
           {/* NOTIFICATION BELL WITH LOCAL STATUS UPDATE HISTORY ARRAY */}
           <div className="relative">
@@ -448,7 +935,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setShowPaletteMenu(false);
                 setShowProfileMenu(false);
               }}
-              className={`relative p-2 rounded-xl border transition-all cursor-pointer ${
+              className={`relative p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer ${
                 showNotifications
                   ? 'bg-rose-50 dark:bg-slate-800 border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400'
                   : 'text-slate-700 dark:text-slate-200 hover:bg-rose-50/70 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-800'
@@ -641,8 +1128,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Color Palette Switcher */}
-          <div className="relative">
+          {/* Color Palette Switcher (hidden on <sm to prevent mobile topbar crowding; accessible in Settings -> Color Theme) */}
+          <div className="relative hidden sm:block">
             <button
               onClick={() => {
                 setShowPaletteMenu(!showPaletteMenu);
@@ -665,7 +1152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="fixed inset-0 z-40"
                   onClick={() => setShowPaletteMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 p-2">
+                <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 p-2">
                   <div className="px-3 py-1.5 text-[11px] font-black tracking-wider text-rose-500">
                     Grapefruit Palette
                   </div>
@@ -700,13 +1187,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             id="theme-toggle-btn"
             onClick={toggleTheme}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 cursor-pointer shadow-xs active:scale-95 bg-rose-50/80 hover:bg-rose-100/90 text-rose-950 border-rose-300 dark:bg-slate-800/95 dark:hover:bg-slate-750 dark:text-white dark:border-rose-900/80"
+            className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl border transition-all duration-200 cursor-pointer shadow-xs active:scale-95 bg-rose-50/80 hover:bg-rose-100/90 text-rose-950 border-rose-300 dark:bg-slate-800/95 dark:hover:bg-slate-750 dark:text-white dark:border-rose-900/80"
             title={`Currently in ${theme === 'dark' ? 'Night (Dark)' : 'Day (Light)'} mode. Click to switch.`}
             aria-label="Toggle dark and light mode"
           >
             {theme === 'dark' ? (
               <>
-                <div className="p-1 rounded-lg bg-amber-400/20 text-amber-400">
+                <div className="p-0.5 sm:p-1 rounded-lg bg-amber-400/20 text-amber-400">
                   <Sun className="w-3.5 h-3.5 animate-spin-slow" />
                 </div>
                 <span className="hidden sm:inline font-black text-xs text-white tracking-wide">
@@ -715,7 +1202,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             ) : (
               <>
-                <div className="p-1 rounded-lg bg-rose-600 text-white shadow-2xs">
+                <div className="p-0.5 sm:p-1 rounded-lg bg-rose-600 text-white shadow-2xs">
                   <Moon className="w-3.5 h-3.5" />
                 </div>
                 <span className="hidden sm:inline font-black text-xs text-rose-950 tracking-wide">
@@ -733,10 +1220,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setShowPaletteMenu(false);
                 setShowNotifications(false);
               }}
-              className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-700 bg-slate-50/50 dark:bg-slate-900 transition-all text-left cursor-pointer"
+              className="flex items-center gap-1 sm:gap-2 pl-1.5 pr-1.5 sm:pl-2 sm:pr-2.5 py-1 sm:py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-700 bg-slate-50/50 dark:bg-slate-900 transition-all text-left cursor-pointer"
             >
               <div
-                className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
                   isAdmin
                     ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30'
                     : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
@@ -752,7 +1239,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {user?.phone}
                 </p>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             </button>
 
             {/* Dropdown panel */}
@@ -762,7 +1249,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="fixed inset-0 z-40"
                   onClick={() => setShowProfileMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 p-2 py-2">
+                <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 p-2 py-2">
                   <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
                     <p className="text-xs font-semibold text-slate-900 dark:text-white">
                       {user?.name}
@@ -824,6 +1311,49 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Mobile Expandable Global Search Bar */}
+      {isMobileSearchOpen && (
+        <div
+          ref={mobileSearchRef}
+          className="md:hidden px-3 pb-3 pt-1 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 relative"
+        >
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              ref={mobileInputRef}
+              type="text"
+              value={searchQuery}
+              onFocus={() => setIsSearchOpen(true)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearchOpen(true);
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search EDF ID, requester, or material..."
+              aria-label="Global search for EDFs by ID, requester name, or material description"
+              className="w-full h-11 pl-9 pr-10 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500/30 focus:border-rose-400"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (searchQuery) {
+                  setSearchQuery('');
+                  mobileInputRef.current?.focus();
+                } else {
+                  setIsMobileSearchOpen(false);
+                  setIsSearchOpen(false);
+                }
+              }}
+              aria-label={searchQuery ? 'Clear search' : 'Close search'}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            {renderSearchDropdown()}
+          </div>
+        </div>
+      )}
     </header>
   );
 };

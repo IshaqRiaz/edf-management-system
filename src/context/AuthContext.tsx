@@ -7,7 +7,11 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   isVisitor: boolean;
-  login: (phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (
+    phone: string,
+    password: string,
+    expectedRole?: 'admin' | 'visitor'
+  ) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateUser: (user: User) => void;
 }
@@ -72,12 +76,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchMe();
   }, [token]);
 
-  const login = async (phone: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (
+    phone: string,
+    password: string,
+    expectedRole?: 'admin' | 'visitor'
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ phone, password, expectedRole }),
       });
 
       const data = await res.json();

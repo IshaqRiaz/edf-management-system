@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { EDF, Category, EDFItem } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
 import { HighlightText } from './HighlightText.tsx';
@@ -92,7 +92,16 @@ export const checkEdfMatchesSearch = (
   }
 
   const isMatch = tokens.every((token) => {
+    const cleanIdToken = token.replace(/^#/, '');
+    const matchesId =
+      cleanIdToken !== '' &&
+      /^\d+$/.test(cleanIdToken) &&
+      item.id !== undefined &&
+      item.id !== null &&
+      String(item.id).includes(cleanIdToken);
+
     return (
+      matchesId ||
       checkStr(item.edfNumber).includes(token) ||
       checkStr(item.requesterName).includes(token) ||
       checkStr(item.category).includes(token) ||
@@ -195,6 +204,21 @@ export const EDFList: React.FC<EDFListProps> = ({
   // Search highlighting & visual dimming state
   // When active (true by default), non-matching items are visually dimmed while matches are highlighted
   const [dimNonMatching, setDimNonMatching] = useState<boolean>(true);
+  const [debouncedSearchAnim, setDebouncedSearchAnim] = useState<string>(search.trim());
+
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (!trimmed) {
+      setDebouncedSearchAnim('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedSearchAnim(trimmed);
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const filterAnimationKey = `${activeTab}|${selectedCategory}|${selectedStatus}|${overdueOnly}|${dateFilter}|${dimNonMatching}|${debouncedSearchAnim}`;
 
   // Search match statistics across unique EDF numbers
   const searchMatchStats = useMemo(() => {
@@ -487,9 +511,9 @@ export const EDFList: React.FC<EDFListProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full min-w-0 max-w-full">
       {/* Dynamic Unique EDF Count Indicator Above the Export Section (By EDF ID, not Material Rows) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 text-white dark:bg-slate-800/90 border border-slate-700/80 shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 text-white dark:bg-slate-800/90 border border-slate-700/80 shadow-xs w-full min-w-0">
         <div className="flex items-center gap-2 text-xs font-bold">
           <Layers className="w-4 h-4 text-indigo-400 shrink-0" />
           <span>Unique EDFs Matching Current Filters (by ID):</span>
@@ -509,10 +533,10 @@ export const EDFList: React.FC<EDFListProps> = ({
       </div>
 
       {/* Clickable EDF Category / Status Tabs with inside Export Button */}
-      <div className="p-3.5 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+      <div className="w-full min-w-0 max-w-full p-3.5 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 min-w-0">
           {/* Tabs Container */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
             {/* 1. Total EDF Tab */}
             <div className={`inline-flex items-center rounded-2xl p-1 border transition-all ${
               activeTab === 'Total'
@@ -715,7 +739,7 @@ export const EDFList: React.FC<EDFListProps> = ({
           </div>
 
           {/* Active Tab Direct Export CTA Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Showing <span className="font-mono font-black text-slate-900 dark:text-white">{uniqueFilteredCountById}</span> Unique EDF{uniqueFilteredCountById === 1 ? '' : 's'}
             </span>
@@ -723,21 +747,21 @@ export const EDFList: React.FC<EDFListProps> = ({
               type="button"
               onClick={() => handleExportTab(activeTab)}
               disabled={getTabRecords(activeTab).length === 0}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-extrabold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-40"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-extrabold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-40 max-w-full text-left"
               title={`Download all ${getTabRecords(activeTab).length} unique EDFs belonging to ${activeTab} tab to CSV`}
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export {activeTab} EDF CSV ({getTabRecords(activeTab).length})</span>
+              <Download className="w-3.5 h-3.5 shrink-0" />
+              <span className="break-words">Export {activeTab} EDF CSV ({getTabRecords(activeTab).length})</span>
             </button>
             <button
               type="button"
               onClick={() => handleExportTabPdf(activeTab)}
               disabled={getTabRecords(activeTab).length === 0}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-40"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-40 max-w-full text-left"
               title={`Download all ${getTabRecords(activeTab).length} unique EDFs belonging to ${activeTab} tab as grouped PDF`}
             >
-              <FileDown className="w-3.5 h-3.5" />
-              <span>Export {activeTab} EDF PDF ({getTabRecords(activeTab).length})</span>
+              <FileDown className="w-3.5 h-3.5 shrink-0" />
+              <span className="break-words">Export {activeTab} EDF PDF ({getTabRecords(activeTab).length})</span>
             </button>
           </div>
         </div>
@@ -761,10 +785,10 @@ export const EDFList: React.FC<EDFListProps> = ({
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="w-full min-w-0 p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 min-w-0">
           {/* Search bar with Keyword indicator */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
@@ -1120,18 +1144,20 @@ export const EDFList: React.FC<EDFListProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredEdfs.map((item) => {
+                filteredEdfs.map((item, rowIndex) => {
                   const isRowSelected = selectedIds.includes(item.id);
                   const isOverdue = item.status === 'Overdue' || item.isOverdue;
                   const isDueSoon = isDueWithin24Hours(item.requiredDate, item.status);
                   const searchMatch = checkEdfMatchesSearch(item, search);
                   const isItemMatch = !search.trim() || searchMatch.isMatch;
                   const isDimmed = search.trim().length > 0 && dimNonMatching && !isItemMatch;
+                  const entryDelayMs = Math.min(rowIndex, 10) * 20;
 
                   return (
-                    <React.Fragment key={item.id}>
+                    <React.Fragment key={`${filterAnimationKey}-${item.id}`}>
                       <tr
-                        className={`transition-all duration-200 group ${
+                        style={!isDimmed ? { animationDelay: `${entryDelayMs}ms` } : undefined}
+                        className={`transition-all duration-200 group ${!isDimmed ? 'edf-item-enter' : ''} ${
                           isDimmed
                             ? 'opacity-30 dark:opacity-20 contrast-75 saturate-50 hover:opacity-95 hover:contrast-100 hover:saturate-100 bg-slate-100/50 dark:bg-slate-900/30 border-l-2 border-l-slate-300 dark:border-l-slate-700'
                             : isOverdue
@@ -1352,7 +1378,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                     {expandedRowId === item.id && (
                       <tr key={`expanded-${item.id}`} className="bg-indigo-50/20 dark:bg-slate-950/70 border-y-2 border-indigo-200 dark:border-indigo-900/60">
                         <td colSpan={isAdmin ? 12 : 11} className="p-3 sm:p-5">
-                          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-950 shadow-sm space-y-3">
+                          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-950 shadow-sm space-y-3 edf-expand-enter">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
                               <div>
                                 <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center flex-wrap gap-2">
@@ -1538,7 +1564,7 @@ export const EDFList: React.FC<EDFListProps> = ({
         </div>
 
         {/* MOBILE RESPONSIVE CARDS VIEW (Visible only on <768px screens, tested for 320px, 375px, 390px, 430px) */}
-        <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+        <div className="block md:hidden w-full min-w-0 divide-y divide-slate-100 dark:divide-slate-800">
           {filteredEdfs.length === 0 ? (
             <div className="py-10 px-4 text-center text-slate-400 dark:text-slate-500">
               <AlertOctagon className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
@@ -1548,17 +1574,19 @@ export const EDFList: React.FC<EDFListProps> = ({
               <p className="text-xs mt-1">Try resetting filters or search keywords.</p>
             </div>
           ) : (
-            filteredEdfs.map((item) => {
+            filteredEdfs.map((item, cardIndex) => {
               const isOverdue = item.status === 'Overdue' || item.isOverdue;
               const isDueSoon = isDueWithin24Hours(item.requiredDate, item.status);
               const searchMatch = checkEdfMatchesSearch(item, search);
               const isItemMatch = !search.trim() || searchMatch.isMatch;
               const isDimmed = search.trim().length > 0 && dimNonMatching && !isItemMatch;
+              const entryDelayMs = Math.min(cardIndex, 10) * 20;
 
               return (
                 <div
-                  key={item.id}
-                  className={`p-4 space-y-3 transition-all duration-200 ${
+                  key={`${filterAnimationKey}-card-${item.id}`}
+                  style={!isDimmed ? { animationDelay: `${entryDelayMs}ms` } : undefined}
+                  className={`p-3.5 sm:p-4 space-y-3 min-w-0 transition-all duration-200 ${!isDimmed ? 'edf-item-enter' : ''} ${
                     isDimmed
                       ? 'opacity-30 dark:opacity-20 contrast-75 saturate-50 hover:opacity-95 hover:contrast-100 hover:saturate-100 bg-slate-100/40 dark:bg-slate-900/30 border-l-2 border-l-slate-300 dark:border-l-slate-700'
                       : isOverdue
@@ -1571,8 +1599,8 @@ export const EDFList: React.FC<EDFListProps> = ({
                   }`}
                 >
                   {/* 1. EDF Number + Status */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-start justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
                       {isDueSoon && (
                         <span
                           className="inline-flex items-center justify-center p-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800"
@@ -1583,7 +1611,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                       )}
                       <button
                         onClick={() => onViewDetails(item)}
-                        className="font-mono font-black text-sm text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 text-left cursor-pointer"
+                        className="font-mono font-black text-sm text-slate-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 text-left cursor-pointer break-all min-w-0"
                       >
                         <HighlightText text={item.edfNumber} query={search} />
                       </button>
@@ -1621,11 +1649,11 @@ export const EDFList: React.FC<EDFListProps> = ({
                   </div>
 
                   {/* 2. Remarks & Notes */}
-                  <div className="bg-slate-50/70 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-800 text-xs">
+                  <div className="bg-slate-50/70 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-800 text-xs min-w-0">
                     <span className="text-[10px] font-bold text-slate-400 tracking-wider block mb-0.5">
                       2. Remarks & Notes
                     </span>
-                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed break-words">
                       {item.remarks ? (
                         <HighlightText text={item.remarks} query={search} />
                       ) : (
@@ -1635,14 +1663,14 @@ export const EDFList: React.FC<EDFListProps> = ({
                   </div>
 
                   {/* 3. Material Summary */}
-                  <div className="bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs">
+                  <div className="bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-xs min-w-0">
                     <span className="text-[10px] font-bold text-slate-400 tracking-wider block mb-0.5">
                       3. Material Summary
                     </span>
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">
+                    <p className="font-semibold text-slate-900 dark:text-slate-100 break-words">
                       <HighlightText text={item.materialList} query={search} />
                     </p>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono mt-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 font-mono mt-1">
                       <span>Unit: <strong className="text-slate-700 dark:text-slate-300"><HighlightText text={item.unit} query={search} /></strong></span>
                       <span>Qty: <strong className="text-slate-900 dark:text-white font-bold">{item.quantity}</strong></span>
                       {item.items && item.items.length > 1 && (
@@ -1654,7 +1682,7 @@ export const EDFList: React.FC<EDFListProps> = ({
                   </div>
 
                   {/* 4. Live Timer */}
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between gap-2 flex-wrap p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] text-slate-400 font-bold">
                       4. Live Timer:
                     </span>
@@ -1662,17 +1690,17 @@ export const EDFList: React.FC<EDFListProps> = ({
                   </div>
 
                   {/* 5. Remaining EDF information (Requester, Dates) */}
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
-                    <div>
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100 dark:border-slate-800 min-w-0">
+                    <div className="min-w-0">
                       <span className="text-[10px] text-slate-400 block font-semibold">Requester:</span>
                       <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
                         <HighlightText text={item.requesterName} query={search} />
                       </span>
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <span className="text-[10px] text-slate-400 block font-semibold">Required Date:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">
                         {new Date(item.requiredDate).toLocaleDateString()}
                       </span>
                     </div>
@@ -1738,7 +1766,7 @@ export const EDFList: React.FC<EDFListProps> = ({
 
                   {/* Inline Material Items Checklist for Mobile */}
                   {expandedRowId === item.id && (
-                    <div className="p-3 rounded-2xl bg-indigo-50/30 dark:bg-slate-950/80 border border-indigo-200 dark:border-indigo-900/60 space-y-2 mt-2">
+                    <div className="p-3 rounded-2xl bg-indigo-50/30 dark:bg-slate-950/80 border border-indigo-200 dark:border-indigo-900/60 space-y-2 mt-2 edf-expand-enter">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-slate-900 dark:text-white">
@@ -1764,8 +1792,8 @@ export const EDFList: React.FC<EDFListProps> = ({
                           const isChecked = Boolean(it.id && selectedItemIds.includes(it.id));
 
                           return (
-                            <div key={it.id || idx} className="pt-1.5 flex items-start justify-between gap-2 text-xs">
-                              <div className="flex items-start gap-2">
+                            <div key={it.id || idx} className="pt-1.5 flex items-start justify-between gap-2 text-xs min-w-0">
+                              <div className="flex items-start gap-2 min-w-0 flex-1">
                                 {isReceived ? (
                                   <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                                 ) : it.id ? (
@@ -1776,11 +1804,11 @@ export const EDFList: React.FC<EDFListProps> = ({
                                     className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 accent-blue-600 shrink-0 mt-0.5"
                                   />
                                 ) : null}
-                                <div>
-                                  <p className="font-semibold text-slate-800 dark:text-slate-200 leading-tight">
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-semibold text-slate-800 dark:text-slate-200 leading-tight break-words">
                                     <HighlightText text={it.itemDescription} query={search} />
                                   </p>
-                                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  <p className="text-[10px] text-slate-400 font-mono mt-0.5 break-words">
                                     {it.quantity} <HighlightText text={it.unit} query={search} />
                                   </p>
                                 </div>

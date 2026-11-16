@@ -1005,7 +1005,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
   const totalCSVNew = totalCSVMDocs - totalCSVExisting;
 
   return (
-    <div className="space-y-6 w-full max-w-full overflow-hidden">
+    <div className="space-y-6 w-full min-w-0 max-w-full overflow-x-clip">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3.5">
@@ -1488,23 +1488,23 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
           <div className="space-y-6">
             {/* 1. AUTOMATIC EDF/PDF NUMBER DETECTION STATUS BANNER */}
             {edfDetectionSource === 'detected' && (
-              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-3 shadow-xs">
-                <div className="flex items-center gap-2.5">
+              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 shadow-xs min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>
+                  <span className="break-words">
                     Auto-detected number <strong>&quot;{edfNumber}&quot;</strong> from heading{' '}
                     <strong>&quot;{detectedColumnHeading}&quot;</strong>.
                   </span>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 shrink-0 self-start sm:self-auto">
                   Detected from Table
                 </span>
               </div>
             )}
 
             {edfDetectionSource === 'ambiguous' && (
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-2.5 shadow-xs">
-                <div className="flex items-center justify-between gap-2">
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-2.5 shadow-xs min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                     <span className="font-extrabold">

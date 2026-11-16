@@ -300,7 +300,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               Total Active Workflow: <strong className="font-mono text-slate-900 dark:text-white">{totalCount}</strong> forms
             </span>
 
-            <div className="flex items-center gap-4 text-[11px] font-semibold">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold">
               <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                 Pending: {pendingCount} ({pendingPct}%)
@@ -412,7 +412,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       </div>
 
       {/* Mobile Column Tab Switcher (Visible on mobile/tablet <lg screens) */}
-      <div className="flex lg:hidden items-center p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 mb-2 gap-1 overflow-x-auto">
+      <div className="flex lg:hidden items-center p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 mb-2 gap-1 overflow-x-auto w-full min-w-0 max-w-full">
         {COLUMNS.map((col) => {
           const ColIcon = col.icon;
           const isActive = mobileActiveColumn === col.key;
@@ -461,7 +461,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
               onDragOver={(e) => handleDragOver(e, col.key)}
               onDragLeave={() => handleDragLeave(col.key)}
               onDrop={(e) => handleDrop(e, col.key)}
-              className={`flex-col rounded-3xl bg-slate-100/60 dark:bg-slate-950/50 border transition-all duration-200 min-h-[480px] lg:min-h-[580px] ${
+              className={`flex-col w-full min-w-0 rounded-3xl bg-slate-100/60 dark:bg-slate-950/50 border transition-all duration-200 min-h-[480px] lg:min-h-[580px] ${
                 mobileActiveColumn !== 'All' && mobileActiveColumn !== col.key
                   ? 'hidden lg:flex'
                   : 'flex'

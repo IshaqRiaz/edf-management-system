@@ -584,7 +584,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
   const activeUser = dateRangeSummary.mostActiveUser;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       {/* ========================================================================= */}
       {/* 1. TOP SUMMARY ROW (Total Actions Performed & Most Active User in Range)    */}
       {/* ========================================================================= */}
@@ -979,9 +979,9 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
       {/* ========================================================================= */}
       {/* MAIN AUDIT LOG TABLE                                                      */}
       {/* ========================================================================= */}
-      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      <div className="w-full min-w-0 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
               Chronological Audit Trail
             </h3>
@@ -994,7 +994,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full min-w-0">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
@@ -1573,7 +1573,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
 
             {/* Right: Controls based on Mode */}
             {viewMode === 'paginated' ? (
-              <div className="flex items-center gap-1.5 self-center md:self-auto">
+              <div className="flex flex-wrap items-center justify-center gap-1.5 self-center md:self-auto">
                 {/* First Page */}
                 <button
                   onClick={() => setCurrentPage(1)}
@@ -1597,7 +1597,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ onSelectEdf, edfs = [] }) =>
                 </button>
 
                 {/* Page Number Pills */}
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center justify-center gap-1">
                   {Array.from({ length: totalPages }, (_, i) => i + 1)
                     .filter((page) => {
                       if (page === 1 || page === totalPages) return true;

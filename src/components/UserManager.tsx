@@ -402,7 +402,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex items-center gap-3.5">
@@ -482,7 +482,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-slate-500">Role:</span>
           {(['all', 'admin', 'visitor'] as const).map((r) => (
             <button
@@ -501,8 +501,8 @@ export const UserManager: React.FC<UserManagerProps> = ({
       </div>
 
       {/* Users Table */}
-      <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="w-full min-w-0 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto w-full min-w-0">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 tracking-wider text-[11px] font-bold">

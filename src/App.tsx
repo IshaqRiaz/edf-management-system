@@ -79,10 +79,12 @@ const MainLayout: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Navigation Filter presets from Dashboard clicks
+  // Navigation Filter presets from Dashboard clicks & Navbar Global Search
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterOverdueOnly, setFilterOverdueOnly] = useState<boolean>(false);
+  const [edfListSearch, setEdfListSearch] = useState<string>('');
+  const [edfListNavKey, setEdfListNavKey] = useState<number>(0);
 
   // In-app Toast Notification State (Avoids window.alert)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
@@ -860,7 +862,7 @@ const MainLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
+    <div className="min-h-screen w-full max-w-full overflow-x-clip flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
       {/* Top Navbar */}
       <Navbar
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -871,12 +873,20 @@ const MainLayout: React.FC = () => {
         onNavigateToAuditLog={() => setActiveTab('audit_log')}
         edfs={edfs}
         onSelectEdf={(edf) => setViewingEdf(edf)}
+        onViewAllSearchResults={(query) => {
+          setEdfListSearch(query);
+          setFilterCategory('All');
+          setFilterStatus('All');
+          setFilterOverdueOnly(false);
+          setEdfListNavKey((k) => k + 1);
+          setActiveTab('edfs');
+        }}
         pendingSyncCount={pendingSyncCount}
         isSyncing={isSyncing}
         onSyncNow={processSyncQueue}
       />
 
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-w-0 w-full max-w-full">
         {/* Left Sidebar */}
         <Sidebar
           activeTab={activeTab}
@@ -895,7 +905,7 @@ const MainLayout: React.FC = () => {
         />
 
         {/* Main Content View */}
-        <main className="flex-1 p-3 sm:p-5 md:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0 overflow-x-hidden">
+        <main className="flex-1 p-3 sm:p-5 md:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0 overflow-x-clip">
           {activeTab === 'dashboard' && (
             <Dashboard
               stats={stats}
@@ -926,6 +936,7 @@ const MainLayout: React.FC = () => {
 
           {activeTab === 'edfs' && (
             <EDFList
+              key={edfListNavKey}
               edfs={edfs}
               categories={categories}
               isLoading={isLoading}
@@ -944,6 +955,8 @@ const MainLayout: React.FC = () => {
               initialCategory={filterCategory}
               initialStatus={filterStatus}
               initialOverdueOnly={filterOverdueOnly}
+              searchQuery={edfListSearch}
+              onSearchQueryChange={setEdfListSearch}
             />
           )}
 
@@ -1043,7 +1056,7 @@ const MainLayout: React.FC = () => {
 
       {/* Floating In-App Toast Notification */}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50 max-w-md animate-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed bottom-4 left-3 right-3 sm:left-auto sm:bottom-5 sm:right-5 z-50 sm:max-w-md animate-in slide-in-from-bottom-5 duration-200">
           <div
             className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl text-xs font-bold border backdrop-blur-md ${
               toast.type === 'error'

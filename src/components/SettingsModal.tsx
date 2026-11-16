@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Category } from '../types.ts';
 import { useAuth } from '../context/AuthContext.tsx';
+import { useTheme, COLOR_THEMES, getColorThemeConfig } from '../context/ThemeContext.tsx';
 import {
   KeyRound,
   Layers,
@@ -10,7 +11,11 @@ import {
   AlertTriangle,
   X,
   Database,
-  Lock,
+  Palette,
+  Sun,
+  Moon,
+  Check,
+  Sparkles,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -27,7 +32,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onRefreshCategories,
 }) => {
   const { user, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState<'password' | 'categories' | 'system'>('password');
+  const { theme, setTheme, accent, setAccent } = useTheme();
+  const currentThemeConfig = getColorThemeConfig(accent);
+  const [activeTab, setActiveTab] = useState<'password' | 'theme' | 'categories' | 'system'>('password');
 
   // Password state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -165,40 +172,59 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Tab switcher */}
-        <div className="flex border-b border-stone-100 dark:border-stone-800 px-6 bg-stone-50/25 dark:bg-stone-950/20">
+        <div className="flex overflow-x-auto border-b border-stone-100 dark:border-stone-800 px-6 bg-stone-50/25 dark:bg-stone-950/20">
           <button
+            type="button"
             onClick={() => setActiveTab('password')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
               activeTab === 'password'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-stone-400 hover:text-stone-600'
+                ? currentThemeConfig.activeTabClass
+                : 'border-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-200'
             }`}
           >
-            Change Password
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Change Password</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('theme')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+              activeTab === 'theme'
+                ? currentThemeConfig.activeTabClass
+                : 'border-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-200'
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5" />
+            <span>Color Theme</span>
           </button>
 
           {isAdmin && (
             <button
+              type="button"
               onClick={() => setActiveTab('categories')}
-              className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+              className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                 activeTab === 'categories'
-                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-stone-400 hover:text-stone-600'
+                  ? currentThemeConfig.activeTabClass
+                  : 'border-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-200'
               }`}
             >
-              Manage Categories
+              <Layers className="w-3.5 h-3.5" />
+              <span>Manage Categories</span>
             </button>
           )}
 
           <button
+            type="button"
             onClick={() => setActiveTab('system')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
               activeTab === 'system'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-stone-400 hover:text-stone-600'
+                ? currentThemeConfig.activeTabClass
+                : 'border-transparent text-stone-400 hover:text-stone-600 dark:hover:text-stone-200'
             }`}
           >
-            Database Info
+            <Database className="w-3.5 h-3.5" />
+            <span>Database Info</span>
           </button>
         </div>
 
@@ -274,12 +300,135 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <button
                   type="submit"
                   disabled={isUpdatingPassword}
-                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 disabled:opacity-50 cursor-pointer"
+                  className={`px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-md disabled:opacity-50 cursor-pointer transition-colors ${currentThemeConfig.primaryButtonClass}`}
                 >
                   {isUpdatingPassword ? 'Saving...' : 'Update Password'}
                 </button>
               </div>
             </form>
+          )}
+
+          {/* TAB 2: COLOR THEME & APPEARANCE */}
+          {activeTab === 'theme' && (
+            <div className="space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-extrabold text-stone-900 dark:text-white">
+                    Color Theme
+                  </h4>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+                    Select a brand-aligned color scheme for navigation, dashboard banners, and primary controls.
+                  </p>
+                </div>
+
+                {/* Display Mode Toggle (Light / Dark) */}
+                <div
+                  role="group"
+                  aria-label="Display mode"
+                  className="inline-flex items-center gap-1 p-1 rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 shrink-0 self-start sm:self-auto"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setTheme('light')}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                      theme === 'light'
+                        ? 'bg-white text-stone-900 shadow-xs'
+                        : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Day</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTheme('dark')}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                      theme === 'dark'
+                        ? 'bg-stone-900 text-white shadow-xs'
+                        : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Night</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Brand-Aligned Color Scheme Selector Grid */}
+              <div
+                role="radiogroup"
+                aria-label="Color Theme"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+              >
+                {COLOR_THEMES.map((opt) => {
+                  const isSelected = accent === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      onClick={() => setAccent(opt.id)}
+                      className={`group text-left p-3.5 rounded-2xl border transition-all cursor-pointer flex flex-col gap-2.5 ${
+                        isSelected
+                          ? opt.selectedCardClass
+                          : 'border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-950/40 hover:border-stone-300 dark:hover:border-stone-700 hover:bg-stone-50/70 dark:hover:bg-stone-800/40'
+                      }`}
+                    >
+                      {/* Mini Brand Gradient Bar */}
+                      <div className="flex items-center justify-between gap-2 w-full">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={`w-4 h-4 rounded-full ${opt.swatchClass} shadow-xs shrink-0 ring-2 ring-white dark:ring-stone-900`}
+                          />
+                          <span className="text-xs font-bold text-stone-900 dark:text-white truncate">
+                            {opt.label}
+                          </span>
+                        </div>
+                        {isSelected ? (
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold shrink-0 ${opt.accentTextClass}`}>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Active</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-medium text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300 shrink-0">
+                            Select
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Two-tone preview bar + tagline */}
+                      <div className={`h-2.5 w-full rounded-lg bg-gradient-to-r ${opt.gradientClass} opacity-90`} />
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-tight">
+                        {opt.tagline}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Live Scheme Preview Strip */}
+              <div className="p-3.5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/80 dark:bg-stone-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-8 h-8 rounded-xl bg-gradient-to-r ${currentThemeConfig.gradientClass} text-white flex items-center justify-center shrink-0 shadow-xs`}>
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-stone-900 dark:text-white truncate">
+                      {currentThemeConfig.label}
+                    </p>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                      Saved automatically across Dashboard, Sidebar, and Navbar
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={`px-3 py-1.5 rounded-xl text-white text-xs font-bold whitespace-nowrap shrink-0 shadow-xs bg-gradient-to-r ${currentThemeConfig.gradientClass}`}
+                >
+                  Active Scheme
+                </span>
+              </div>
+            </div>
           )}
 
           {/* TAB 2: MANAGE CATEGORIES (Admin only) */}
@@ -322,7 +471,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex justify-end">
                   <button
                     type="submit"
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-xs"
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white font-bold text-xs cursor-pointer shadow-xs transition-colors ${currentThemeConfig.primaryButtonClass}`}
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Category</span>

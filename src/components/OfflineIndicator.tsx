@@ -28,14 +28,14 @@ export const OfflineIndicator: React.FC<{ pendingSyncCount?: number }> = ({ pend
   // When just reconnected to internet
   if (isOnline && showReconnectedBanner) {
     return (
-      <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-emerald-600/95 dark:bg-emerald-700/95 text-white text-xs font-bold shadow-2xl backdrop-blur-md border border-emerald-400/40 animate-in slide-in-from-bottom-3 duration-200">
-        <span className="relative flex h-2.5 w-2.5">
+      <div className="fixed bottom-4 left-3 right-3 sm:right-auto sm:left-4 sm:max-w-sm z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-emerald-600/95 dark:bg-emerald-700/95 text-white text-xs font-bold shadow-2xl backdrop-blur-md border border-emerald-400/40 animate-in slide-in-from-bottom-3 duration-200">
+        <span className="relative flex h-2.5 w-2.5 shrink-0">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
         </span>
-        <div className="flex items-center gap-1.5">
-          <Wifi className="w-3.5 h-3.5" />
-          <span>Back Online — All data synced automatically</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Wifi className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate sm:whitespace-normal">Back Online — All data synced automatically</span>
         </div>
       </div>
     );
@@ -46,7 +46,7 @@ export const OfflineIndicator: React.FC<{ pendingSyncCount?: number }> = ({ pend
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 left-4 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/95 dark:bg-amber-600/95 text-white text-xs font-bold shadow-2xl backdrop-blur-md border border-amber-300/40 animate-in slide-in-from-bottom-3 duration-200 max-w-sm"
+      className="fixed bottom-4 left-3 right-3 sm:right-auto sm:left-4 sm:max-w-sm z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-amber-500/95 dark:bg-amber-600/95 text-white text-xs font-bold shadow-2xl backdrop-blur-md border border-amber-300/40 animate-in slide-in-from-bottom-3 duration-200"
     >
       <div className="p-1.5 rounded-xl bg-white/20 text-white shrink-0">
         <WifiOff className="w-4 h-4 animate-pulse" />

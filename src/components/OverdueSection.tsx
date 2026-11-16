@@ -40,7 +40,7 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
   const overdueEdfs = filterEdfsForExport(edfs, { statusFilter: 'Overdue' }).filteredEdfs;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       {/* Overdue Header Banner (Compact Modern Size) */}
       <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-rose-700 text-white shadow-xl shadow-red-500/20 border border-red-500/30">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
@@ -107,8 +107,8 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
       </div>
 
       {/* Main Table for Overdue Records */}
-      <div className="rounded-3xl bg-white dark:bg-stone-900 border-2 border-rose-300 dark:border-rose-900 shadow-lg shadow-rose-500/5 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="w-full min-w-0 rounded-3xl bg-white dark:bg-stone-900 border-2 border-rose-300 dark:border-rose-900 shadow-lg shadow-rose-500/5 overflow-hidden">
+        <div className="overflow-x-auto w-full min-w-0">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-rose-200 dark:border-rose-900 bg-rose-100/70 dark:bg-rose-950/80 text-rose-900 dark:text-rose-200 text-[11px] font-bold tracking-wider">

@@ -295,7 +295,16 @@ function matchesSearchQuery(edf: EDF, searchQuery: string): boolean {
   const checkStr = (val?: string | null) => (val ? val.toLowerCase() : '');
 
   return tokens.every((token) => {
+    const cleanIdToken = token.replace(/^#/, '');
+    const matchesId =
+      cleanIdToken !== '' &&
+      /^\d+$/.test(cleanIdToken) &&
+      edf.id !== undefined &&
+      edf.id !== null &&
+      String(edf.id).includes(cleanIdToken);
+
     return (
+      matchesId ||
       checkStr(edf.edfNumber).includes(token) ||
       checkStr(edf.requesterName).includes(token) ||
       checkStr(edf.category).includes(token) ||

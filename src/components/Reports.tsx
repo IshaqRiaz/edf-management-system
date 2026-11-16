@@ -341,9 +341,9 @@ export const Reports: React.FC<ReportsProps> = ({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0 max-w-full">
       {/* Header with Navigation Pills & Primary Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm w-full min-w-0">
         <div className="flex items-start sm:items-center gap-3.5 min-w-0">
           <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 shadow-xs shrink-0">
             <BarChart3 className="w-6 h-6" />
@@ -359,13 +359,13 @@ export const Reports: React.FC<ReportsProps> = ({
               {activeReportTab === 'analytics' ? (
                 <span
                   data-testid="export-header-unique-count"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs"
+                  className="inline-flex flex-wrap items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs max-w-full"
                 >
                   <span className="font-mono">{filtered.length}</span>
                   <span>
                     Matching Unique EDF{filtered.length === 1 ? '' : 's'}
                   </span>
-                  <span className="opacity-75 font-semibold">
+                  <span className="opacity-75 font-semibold break-words">
                     ({activeFilterDisplay}{selectedCategory !== 'All' ? ` • ${selectedCategory}` : ''})
                   </span>
                 </span>
@@ -482,10 +482,10 @@ export const Reports: React.FC<ReportsProps> = ({
       )}
 
       {/* Mode Switcher Tabs */}
-      <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 w-fit">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 w-full sm:w-fit max-w-full">
         <button
           onClick={() => setActiveReportTab('analytics')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
             activeReportTab === 'analytics'
               ? 'bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow-sm'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -497,13 +497,13 @@ export const Reports: React.FC<ReportsProps> = ({
 
         <button
           onClick={() => setActiveReportTab('audit_logs')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
             activeReportTab === 'audit_logs'
               ? 'bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow-sm'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <History className="w-4 h-4" />
+          <History className="w-4 h-4 shrink-0" />
           <span>Receipt & Completion Audit Log</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
             {statusLogs.length}
@@ -515,7 +515,7 @@ export const Reports: React.FC<ReportsProps> = ({
       {/* TAB 1: DEMAND ANALYTICS & FULFILLMENT REPORTS                             */}
       {/* ========================================================================= */}
       {activeReportTab === 'analytics' && (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full min-w-0">
           {/* Dynamic Unique EDF Count Banner Above the Export Section (Calculated by EDF ID, not Material Rows) */}
           <div
             data-testid="unique-edf-count-display"
@@ -642,13 +642,13 @@ export const Reports: React.FC<ReportsProps> = ({
                 </div>
 
                 {/* Specific EDF Number Selector & Input */}
-                <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs w-full sm:w-auto min-w-0">
                   <label htmlFor="specific-edf-input" className="text-slate-500 font-semibold flex items-center gap-1">
                     <Hash className="w-3.5 h-3.5 text-indigo-500" />
                     <span>Specific EDF Number:</span>
                   </label>
 
-                  <div className="relative flex items-center">
+                  <div className="relative flex items-center w-full sm:w-auto min-w-0">
                     <input
                       id="specific-edf-input"
                       type="text"
@@ -662,7 +662,7 @@ export const Reports: React.FC<ReportsProps> = ({
                         }
                       }}
                       placeholder="Type or select EDF # (e.g. 3265)"
-                      className="pl-3 pr-7 py-1.5 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="pl-3 pr-7 py-1.5 w-full sm:w-56 min-w-0 max-w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
                     />
                     <datalist id="export-edf-number-options">
                       {uniqueEdfOptions.map((num) => (
@@ -701,7 +701,7 @@ export const Reports: React.FC<ReportsProps> = ({
                         setSpecificEdfNumber(val);
                         setSelectedStatus(val ? 'Specific' : 'Total');
                       }}
-                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono font-bold text-xs focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                      className="w-full sm:w-auto max-w-full min-w-0 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono font-bold text-xs focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
                     >
                       <option value="">Quick Pick EDF #...</option>
                       {uniqueEdfOptions.map((num) => (
@@ -799,15 +799,16 @@ export const Reports: React.FC<ReportsProps> = ({
           </div>
 
           {/* Category Breakdown Table (Unique EDF Count) */}
-          <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="w-full min-w-0 p-4 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
                 Departmental Demand Breakdown (Unique EDF Numbers)
               </h3>
               <span className="text-xs text-slate-400">Filtered distribution</span>
             </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden w-full min-w-0">
+              <div className="overflow-x-auto w-full min-w-0">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
@@ -861,11 +862,12 @@ export const Reports: React.FC<ReportsProps> = ({
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
 
           {/* Grouped Export Preview Table (Vertically Merged EDF Number cell across material rows) */}
-          <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+          <div className="w-full min-w-0 p-4 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
@@ -898,7 +900,7 @@ export const Reports: React.FC<ReportsProps> = ({
               </div>
             </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto max-h-[420px] overflow-y-auto">
+            <div className="w-full min-w-0 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto max-h-[420px] overflow-y-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px] sticky top-0 z-10">
@@ -1022,14 +1024,14 @@ export const Reports: React.FC<ReportsProps> = ({
       {/* TAB 2: RECEIPT & STATUS AUDIT TRAIL LOGS                                */}
       {/* ========================================================================= */}
       {activeReportTab === 'audit_logs' && (
-        <div className="space-y-6">
+        <div className="space-y-6 w-full min-w-0">
           {/* Audit Trail Filter Bar */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5">
+          <div className="w-full min-w-0 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5 min-w-0">
               {/* Action Filter */}
-              <div className="flex items-center gap-1.5 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <label className="text-slate-500 font-semibold">Action:</label>
-                <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800">
+                <div className="flex flex-wrap items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800">
                   <button
                     onClick={() => setLogActionFilter('all')}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
@@ -1079,7 +1081,7 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
 
             {/* Search Input in Audit Trail */}
-            <div className="relative min-w-[220px]">
+            <div className="relative w-full md:w-auto md:min-w-[220px] min-w-0">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -1092,9 +1094,9 @@ export const Reports: React.FC<ReportsProps> = ({
           </div>
 
           {/* Audit Logs Table */}
-          <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
+          <div className="w-full min-w-0 p-4 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="min-w-0">
                 <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
                   EDF Receipt & Status Audit Trail
                 </h3>
@@ -1103,7 +1105,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
                   onClick={handleExportReceiptLogsCSV}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer"
@@ -1123,7 +1125,8 @@ export const Reports: React.FC<ReportsProps> = ({
               </div>
             </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden w-full min-w-0">
+              <div className="overflow-x-auto w-full min-w-0">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
@@ -1236,6 +1239,7 @@ export const Reports: React.FC<ReportsProps> = ({
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         </div>
