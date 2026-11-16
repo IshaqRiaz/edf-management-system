@@ -149,25 +149,37 @@ async function recordStatusHistory(
 // AUTH ROUTES
 // ----------------------------------------------------
 
-// Login with Phone Number and Password
+// Login with Username (Phone Number) and Password
 app.post('/api/auth/login', async (req: Request, res: Response) => {
   try {
-    const { phone, password } = req.body;
+    const { phone, password, expectedRole } = req.body;
     if (!phone || !password) {
-      return res.status(400).json({ error: 'Phone number and password are required' });
+      return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    const cleanPhone = phone.trim();
+    const cleanPhone = String(phone).trim();
     const userList = await db.select().from(users).where(eq(users.phone, cleanPhone)).limit(1);
 
     if (userList.length === 0) {
-      return res.status(401).json({ error: 'Invalid phone number or password' });
+      return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     const user = userList[0];
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid phone number or password' });
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    const actualRole = String(user.role || '').trim().toLowerCase();
+    if (expectedRole === 'admin' && actualRole !== 'admin') {
+      return res.status(403).json({
+        error: 'This account does not have Admin access. Please use the Visitor login option.',
+      });
+    }
+    if (expectedRole === 'visitor' && actualRole !== 'visitor') {
+      return res.status(403).json({
+        error: 'Admin accounts must sign in using the Admin login option.',
+      });
     }
 
     const authUser: AuthUser = {
