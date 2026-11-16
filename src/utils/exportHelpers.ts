@@ -230,6 +230,23 @@ export function deduplicateEdfsByNumber(edfs: EDF[]): EDF[] {
 }
 
 /**
+ * Calculates the unique count of EDFs based on their unique EDF ID (ignoring individual material row count).
+ */
+export function countUniqueEdfsById(edfs: EDF[]): number {
+  if (!edfs || edfs.length === 0) return 0;
+  const uniqueIds = new Set<string>();
+  for (const edf of edfs) {
+    if (edf.id !== undefined && edf.id !== null) {
+      uniqueIds.add(`id:${edf.id}`);
+    } else {
+      const norm = normalizeEdfNumber(edf.edfNumber);
+      if (norm) uniqueIds.add(`num:${norm}`);
+    }
+  }
+  return uniqueIds.size;
+}
+
+/**
  * Counts EDFs strictly by unique EDF Number (10 material items under EDF 3265 = 1 EDF).
  */
 export function countUniqueEdfStats(edfs: EDF[]): UniqueEdfCounts {

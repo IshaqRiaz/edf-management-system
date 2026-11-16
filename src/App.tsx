@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { ThemeProvider } from './context/ThemeContext.tsx';
 import { EDF, Category, DashboardStats, ActivityLog } from './types.ts';
@@ -36,6 +36,7 @@ import {
 import { useOnlineStatus } from './hooks/useOnlineStatus.ts';
 import { OfflineIndicator } from './components/OfflineIndicator.tsx';
 import { exportEDFsToMultiRowCSV } from './utils/csvExport.ts';
+import { countUniqueEdfStats } from './utils/exportHelpers.ts';
 
 const initialStats: DashboardStats = {
   total: 0,
@@ -837,6 +838,10 @@ const MainLayout: React.FC = () => {
     }
   };
 
+  const uniqueOverdueCount = useMemo(() => {
+    return edfs.length > 0 ? countUniqueEdfStats(edfs).overdue : stats.overdue;
+  }, [edfs, stats.overdue]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
@@ -861,7 +866,7 @@ const MainLayout: React.FC = () => {
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         isSidebarOpen={isSidebarOpen}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        overdueCount={stats.overdue}
+        overdueCount={uniqueOverdueCount}
         onNavigateToOverdue={() => setActiveTab('overdue')}
         onNavigateToAuditLog={() => setActiveTab('audit_log')}
         edfs={edfs}
@@ -886,7 +891,7 @@ const MainLayout: React.FC = () => {
           }}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
-          overdueCount={stats.overdue}
+          overdueCount={uniqueOverdueCount}
         />
 
         {/* Main Content View */}
@@ -898,7 +903,9 @@ const MainLayout: React.FC = () => {
               onFilterNavigate={handleFilterNavigate}
               onOpenCreate={() => setIsCreateModalOpen(true)}
               onOpenImport={() => setActiveTab('import')}
-              onExportCSV={() => handleExportCSV(edfs)}
+              onExportCSV={(filteredList, label) =>
+                handleExportCSV(filteredList || edfs, label || 'Total_EDF')
+              }
               onRefresh={() => refreshAllData(true)}
               isRefreshing={isManualRefreshing}
               isAdmin={isAdmin}

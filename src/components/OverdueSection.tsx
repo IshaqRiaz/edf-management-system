@@ -70,7 +70,7 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
             <div className="px-3.5 py-1.5 rounded-xl bg-white text-rose-700 font-extrabold text-xs shadow-md text-center">
               <span className="text-lg font-black">{overdueEdfs.length}</span>
               <span className="block text-[10px] font-bold text-rose-600">
-                Overdue Forms
+                Unique Overdue EDF{overdueEdfs.length === 1 ? '' : 's'}
               </span>
             </div>
 
@@ -81,10 +81,10 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
               }}
               disabled={overdueEdfs.length === 0}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-rose-700 hover:bg-rose-50 font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
-              title="Export all Overdue EDF records with individual material rows to CSV"
+              title={`Export ${overdueEdfs.length} unique Overdue EDF record${overdueEdfs.length === 1 ? '' : 's'} with individual material rows to CSV`}
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Export Overdue CSV</span>
+              <span>Export Overdue CSV ({overdueEdfs.length})</span>
             </button>
 
             <button
@@ -94,10 +94,10 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
               }}
               disabled={overdueEdfs.length === 0}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-900/60 hover:bg-rose-950/70 text-white border border-white/25 font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
-              title="Export all Overdue EDF records with vertically merged EDF Numbers to PDF"
+              title={`Export ${overdueEdfs.length} unique Overdue EDF record${overdueEdfs.length === 1 ? '' : 's'} with vertically merged EDF Numbers to PDF`}
             >
               <FileDown className="w-3.5 h-3.5" />
-              <span>Export Overdue PDF</span>
+              <span>Export Overdue PDF ({overdueEdfs.length})</span>
             </button>
 
             <button

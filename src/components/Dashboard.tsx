@@ -3,6 +3,15 @@ import { DashboardStats, EDF } from '../types.ts';
 import { useTheme, AccentColor } from '../context/ThemeContext.tsx';
 import { TimerBadge } from './TimerBadge.tsx';
 import {
+  ExportFilterType,
+  deduplicateEdfsByNumber,
+  countUniqueEdfsById,
+  countUniqueEdfStats,
+  filterEdfsForExport,
+  getEffectiveEdfState,
+  getExportFilterLabel,
+} from '../utils/exportHelpers.ts';
+import {
   ResponsiveContainer,
   LineChart,
   Line,
@@ -42,7 +51,7 @@ interface DashboardProps {
   onFilterNavigate: (filterType: 'category' | 'status' | 'all' | 'overdue', value?: string) => void;
   onOpenCreate: () => void;
   onOpenImport: () => void;
-  onExportCSV: () => void;
+  onExportCSV: (filteredEdfs?: EDF[], filterLabel?: string) => void;
   onRefresh?: () => Promise<void> | void;
   isRefreshing?: boolean;
   isAdmin: boolean;
@@ -174,6 +183,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const { accent } = useTheme();
   const [activityFilter, setActivityFilter] = useState<'all' | 'creation' | 'update' | 'status' | 'deletion'>('all');
+  const [statsStatusFilter, setStatsStatusFilter] = useState<ExportFilterType>('Total');
+  const [statsCategoryFilter, setStatsCategoryFilter] = useState<string>('All');
 
   const getActivityCategory = (action: string): 'creation' | 'update' | 'status' | 'deletion' | 'other' => {
     const act = action.toLowerCase();
@@ -228,66 +239,146 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return counts;
   }, [deduplicatedActivity]);
 
-  // Count partially received EDFs to recognize partial receiving in dashboard
-  const partiallyReceivedCount = useMemo(() => {
-    return edfs.filter((e) => {
-      if (e.status === 'Received') return false;
-      const rawItems = e.items || [];
-      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-      const recCount =
-        e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-      return (
-        e.status === 'Partially Received' ||
-        (recCount > 0 && recCount < totalCount)
-      );
-    }).length;
-  }, [edfs]);
+  // Aggregate and filter EDFs strictly by unique EDF IDs (never counting material rows)
+  const filteredExportResult = useMemo(() => {
+    return filterEdfsForExport(edfs, {
+      statusFilter: statsStatusFilter,
+      categoryFilter: statsCategoryFilter,
+    });
+  }, [edfs, statsStatusFilter, statsCategoryFilter]);
 
-  // Count fully received EDFs
-  const fullyReceivedCount = useMemo(() => {
-    return edfs.filter((e) => {
-      if (e.status === 'Received') return true;
-      const rawItems = e.items || [];
-      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-      const recCount =
-        e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-      return recCount >= totalCount && totalCount > 0;
-    }).length;
-  }, [edfs]);
+  const uniqueAllEdfs = filteredExportResult.uniqueAllEdfs;
+  const uniqueEdfs = filteredExportResult.filteredEdfs;
 
-  // Count strictly pending EDFs (0 items received)
-  const strictlyPendingCount = useMemo(() => {
-    return edfs.filter((e) => {
-      if (e.status === 'Received') return false;
-      const rawItems = e.items || [];
-      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-      const recCount =
-        e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-      return recCount === 0 && e.status !== 'Partially Received';
-    }).length;
-  }, [edfs]);
+  const hasActiveStatsFilter =
+    statsStatusFilter !== 'Total' || statsCategoryFilter !== 'All';
 
-  // Item progress for partially received EDFs (for Status Matrix card)
-  const partiallyReceivedItemProgress = useMemo(() => {
-    let recItems = 0;
-    let totItems = 0;
-    for (const e of edfs) {
-      const rawItems = e.items || [];
-      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-      const recCount =
-        e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-      if (
-        e.status === 'Partially Received' ||
-        (recCount > 0 && recCount < totalCount)
-      ) {
-        recItems += recCount;
-        totItems += totalCount;
+  const totalUniqueCountById = useMemo(
+    () => countUniqueEdfsById(uniqueAllEdfs),
+    [uniqueAllEdfs]
+  );
+  const filteredUniqueCountById = useMemo(
+    () => countUniqueEdfsById(uniqueEdfs),
+    [uniqueEdfs]
+  );
+  const uniqueStats = useMemo(
+    () => countUniqueEdfStats(uniqueEdfs),
+    [uniqueEdfs]
+  );
+
+  const hasEdfsData = edfs.length > 0;
+
+  const effectiveUnfilteredTotal = hasEdfsData ? totalUniqueCountById : stats.total;
+  const effectiveTotal = hasEdfsData ? filteredUniqueCountById : stats.total;
+  const effectivePending = hasEdfsData ? uniqueStats.pending : stats.pending;
+  const effectivePartiallyReceived = hasEdfsData
+    ? uniqueStats.partiallyReceived
+    : (stats.partiallyReceived || 0);
+  const effectiveReceived = hasEdfsData ? uniqueStats.received : stats.received;
+  const effectiveOverdue = hasEdfsData ? uniqueStats.overdue : stats.overdue;
+
+  const activeStatsFilterLabel = useMemo(() => {
+    const base = getExportFilterLabel({
+      statusFilter: statsStatusFilter,
+    });
+    return statsCategoryFilter !== 'All' ? `${base}_${statsCategoryFilter}` : base;
+  }, [statsStatusFilter, statsCategoryFilter]);
+
+  // Available category options for the Dashboard stats filter
+  const availableCategories = useMemo(() => {
+    const standard = ['HVAC', 'Plumbing', 'Generator', 'Telephone', 'Electrical', 'General'];
+    const seen = new Set(standard.map((c) => c.toLowerCase()));
+    const result = [...standard];
+    for (const edf of uniqueAllEdfs) {
+      const cat = String(edf.category || '').trim();
+      if (cat && !seen.has(cat.toLowerCase())) {
+        seen.add(cat.toLowerCase());
+        result.push(cat);
       }
     }
-    return { recItems, totItems };
-  }, [edfs]);
+    return result;
+  }, [uniqueAllEdfs]);
 
-  // Frequency of EDF creation over the last 7 days
+  // Unique EDF ID counts by category and distribution (reacts dynamically to filter state)
+  const uniqueCategorySummary = useMemo(() => {
+    const buckets: Record<string, EDF[]> = {
+      HVAC: [],
+      Plumbing: [],
+      Generator: [],
+      Telephone: [],
+      Electrical: [],
+      General: [],
+    };
+    const extraBuckets: Record<string, EDF[]> = {};
+
+    for (const edf of uniqueEdfs) {
+      const rawCat = String(edf.category || 'General').trim() || 'General';
+      const lowerCat = rawCat.toLowerCase();
+      if (lowerCat === 'hvac') buckets.HVAC.push(edf);
+      else if (lowerCat === 'plumbing') buckets.Plumbing.push(edf);
+      else if (lowerCat === 'generator') buckets.Generator.push(edf);
+      else if (lowerCat === 'telephone') buckets.Telephone.push(edf);
+      else if (lowerCat === 'electrical') buckets.Electrical.push(edf);
+      else if (lowerCat === 'general') buckets.General.push(edf);
+      else {
+        buckets.General.push(edf);
+        if (!extraBuckets[rawCat]) extraBuckets[rawCat] = [];
+        extraBuckets[rawCat].push(edf);
+      }
+    }
+
+    const counts = {
+      hvac: countUniqueEdfsById(buckets.HVAC),
+      plumbing: countUniqueEdfsById(buckets.Plumbing),
+      generator: countUniqueEdfsById(buckets.Generator),
+      telephone: countUniqueEdfsById(buckets.Telephone),
+      electrical: countUniqueEdfsById(buckets.Electrical),
+      general: countUniqueEdfsById(buckets.General),
+    };
+
+    const categoryDistribution = [
+      { name: 'HVAC', count: counts.hvac },
+      { name: 'Plumbing', count: counts.plumbing },
+      { name: 'Generator', count: counts.generator },
+      { name: 'Telephone', count: counts.telephone },
+      { name: 'Electrical', count: counts.electrical },
+      { name: 'General', count: countUniqueEdfsById(buckets.General.filter((e) => String(e.category || 'General').trim().toLowerCase() === 'general')) },
+      ...Object.entries(extraBuckets).map(([name, group]) => ({
+        name,
+        count: countUniqueEdfsById(group),
+      })),
+    ];
+
+    return { counts, categoryDistribution };
+  }, [uniqueEdfs]);
+
+  const effectiveCategoryDistribution = hasEdfsData
+    ? uniqueCategorySummary.categoryDistribution
+    : stats.categoryDistribution;
+
+  const effectiveStatusDistribution = useMemo(() => {
+    if (!hasEdfsData) return stats.statusDistribution;
+    return [
+      { name: 'Pending', count: effectivePending, color: '#f59e0b' },
+      { name: 'Partially Received', count: effectivePartiallyReceived, color: '#0ea5e9' },
+      { name: 'Received', count: effectiveReceived, color: '#10b981' },
+      { name: 'Overdue', count: effectiveOverdue, color: '#f43f5e' },
+    ];
+  }, [
+    hasEdfsData,
+    stats.statusDistribution,
+    effectivePending,
+    effectivePartiallyReceived,
+    effectiveReceived,
+    effectiveOverdue,
+  ]);
+
+  // Partially received unique EDFs for the In-Progress Intake cards (reacts to active filter)
+  const partiallyReceivedUniqueEdfs = useMemo(() => {
+    return deduplicateEdfsByNumber(uniqueEdfs).filter((e) => getEffectiveEdfState(e).isPartiallyReceived);
+  }, [uniqueEdfs]);
+
+  // Frequency of unique EDF creation over the last 7 days (reacts to active filter)
   const sevenDayStats = useMemo(() => {
     const now = new Date();
     const days: {
@@ -314,8 +405,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
       let count = 0;
       const categories: Record<string, number> = {};
 
-      if (edfs && edfs.length > 0) {
-        edfs.forEach((item) => {
+      if (hasEdfsData) {
+        const dayEdfs: EDF[] = [];
+        uniqueEdfs.forEach((item) => {
           const cDateVal = item.createdAt || item.issueDate;
           if (!cDateVal) return;
           const cd = new Date(cDateVal);
@@ -324,11 +416,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
           const cm = String(cd.getMonth() + 1).padStart(2, '0');
           const cday = String(cd.getDate()).padStart(2, '0');
           if (`${cy}-${cm}-${cday}` === dateKey) {
-            count++;
+            dayEdfs.push(item);
             const cat = item.category || 'General';
             categories[cat] = (categories[cat] || 0) + 1;
           }
         });
+        count = countUniqueEdfsById(dayEdfs);
       } else if (stats.creationHistory7Days && stats.creationHistory7Days.length > 0) {
         const found = stats.creationHistory7Days.find((h) => h.date === dateKey);
         if (found) {
@@ -355,7 +448,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       avgPerDay,
       peakDay,
     };
-  }, [edfs, stats.creationHistory7Days]);
+  }, [hasEdfsData, uniqueEdfs, stats.creationHistory7Days]);
 
   const getBannerGradient = (acc: AccentColor) => {
     switch (acc) {
@@ -466,12 +559,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
         return FileText;
     }
   };
-  // Category cards configuration
+  // Category cards configuration (strictly counted by unique EDF Number strings)
   const categoryCards = [
     {
       id: 'HVAC',
       name: 'HVAC',
-      count: stats.hvac,
+      count: hasEdfsData ? uniqueCategorySummary.counts.hvac : stats.hvac,
       icon: Wind,
       color: 'from-sky-500 to-cyan-500',
       bgColor: 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800/60',
@@ -479,7 +572,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'Plumbing',
       name: 'Plumbing',
-      count: stats.plumbing,
+      count: hasEdfsData ? uniqueCategorySummary.counts.plumbing : stats.plumbing,
       icon: Droplets,
       color: 'from-blue-500 to-indigo-500',
       bgColor: 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60',
@@ -487,7 +580,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'Generator',
       name: 'Generator',
-      count: stats.generator,
+      count: hasEdfsData ? uniqueCategorySummary.counts.generator : stats.generator,
       icon: Zap,
       color: 'from-amber-500 to-orange-500',
       bgColor: 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60',
@@ -495,7 +588,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'Telephone',
       name: 'Telephone',
-      count: stats.telephone,
+      count: hasEdfsData ? uniqueCategorySummary.counts.telephone : stats.telephone,
       icon: Phone,
       color: 'from-teal-500 to-emerald-500',
       bgColor: 'bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/60',
@@ -503,7 +596,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'Electrical',
       name: 'Electrical',
-      count: stats.electrical,
+      count: hasEdfsData ? uniqueCategorySummary.counts.electrical : stats.electrical,
       icon: Sparkles,
       color: 'from-purple-500 to-fuchsia-500',
       bgColor: 'bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/60',
@@ -511,19 +604,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'General',
       name: 'General',
-      count: stats.general,
+      count: hasEdfsData ? uniqueCategorySummary.counts.general : stats.general,
       icon: Layers,
       color: 'from-slate-500 to-slate-700',
       bgColor: 'bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800/60',
     },
   ];
 
-  // Status cards configuration with distinct count colors and hover animations
+  // Status cards configuration with distinct count colors and hover animations (counted by unique EDF Number)
   const statusCards = [
     {
       id: 'Pending',
       name: 'Pending',
-      count: strictlyPendingCount || stats.pending,
+      count: effectivePending,
       icon: Clock,
       countColor: 'text-amber-600 dark:text-amber-400',
       color: 'from-amber-500 to-amber-600',
@@ -533,7 +626,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'Partially Received',
       name: 'Partially Received',
-      count: partiallyReceivedCount || stats.partiallyReceived || 0,
+      count: effectivePartiallyReceived,
       icon: Package,
       countColor: 'text-sky-600 dark:text-sky-400',
       color: 'from-sky-500 to-blue-600',
@@ -543,7 +636,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'Received',
       name: 'Received',
-      count: fullyReceivedCount || stats.received,
+      count: effectiveReceived,
       icon: CheckCircle2,
       countColor: 'text-emerald-600 dark:text-emerald-400',
       color: 'from-emerald-500 to-emerald-600',
@@ -553,7 +646,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     {
       id: 'Overdue',
       name: 'Overdue',
-      count: stats.overdue,
+      count: effectiveOverdue,
       icon: AlertTriangle,
       countColor: 'text-rose-600 dark:text-rose-400 font-black',
       color: 'from-rose-500 to-red-600',
@@ -563,7 +656,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     },
   ];
 
-  const total = Math.max(stats.total, 1);
+  const total = Math.max(effectiveTotal, 1);
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -579,12 +672,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
               <span>Auto-refresh 5s</span>
             </div>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur text-white text-[10px] font-extrabold border border-white/25">
+              <span>
+                {effectiveTotal} Unique EDF{effectiveTotal === 1 ? '' : 's'} (by ID)
+              </span>
+              {hasActiveStatsFilter && hasEdfsData && (
+                <span className="opacity-85 font-semibold">
+                  • of {effectiveUnfilteredTotal} Total
+                </span>
+              )}
+            </div>
           </div>
           <h2 className="text-lg sm:text-xl font-black tracking-tight truncate">
             EDF Operational Overview
           </h2>
           <p className="text-rose-100 text-xs mt-0.5 max-w-xl font-medium">
-            Monitor real-time demand statuses, live countdown deadlines, and department material requests.
+            Monitor real-time demand statuses, live countdown deadlines, and department requests aggregated by unique EDF IDs.
           </p>
         </div>
 
@@ -608,30 +711,82 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </>
           )}
           <button
-            onClick={onExportCSV}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs"
-            title="Export filtered records to CSV"
+            onClick={() => onExportCSV(hasEdfsData ? uniqueEdfs : undefined, activeStatsFilterLabel)}
+            disabled={effectiveTotal === 0}
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+            title={`Export ${effectiveTotal} unique EDF${effectiveTotal === 1 ? '' : 's'} to CSV`}
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
+            <span>Export CSV ({effectiveTotal})</span>
           </button>
         </div>
       </div>
 
-      {/* Primary KPI Header: Total EDFs & Status Breakdown */}
+      {/* Primary KPI Header: Total EDFs & Status Breakdown with Reactive Filter Controls */}
       <div className="w-full min-w-0">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 mb-3">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <h3 className="text-xs font-black text-slate-900 dark:text-white truncate">
               Status Matrix (Click to filter)
             </h3>
-            {stats.overdue > 0 && (
+            <span
+              data-testid="dashboard-unique-edf-count"
+              className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+            >
+              {effectiveTotal} Unique EDF{effectiveTotal === 1 ? '' : 's'}
+            </span>
+            {effectiveOverdue > 0 && (
               <span className="px-2 py-0.2 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 animate-pulse shrink-0">
-                {stats.overdue} Action Required
+                {effectiveOverdue} Action Required
               </span>
             )}
           </div>
-          <span className="text-[11px] text-slate-400 shrink-0">Live operational status</span>
+
+          {/* Dashboard Stats Filter Controls */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                aria-label="Filter dashboard stats by status"
+                value={statsStatusFilter}
+                onChange={(e) => setStatsStatusFilter(e.target.value as ExportFilterType)}
+                className="px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-bold text-[11px] focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
+              >
+                <option value="Total">All Statuses</option>
+                <option value="Pending">Pending EDF</option>
+                <option value="Partially Received">Partially Received EDF</option>
+                <option value="Received">Received EDF</option>
+                <option value="Overdue">Overdue EDF</option>
+              </select>
+            </div>
+
+            <select
+              aria-label="Filter dashboard stats by category"
+              value={statsCategoryFilter}
+              onChange={(e) => setStatsCategoryFilter(e.target.value)}
+              className="px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-bold text-[11px] focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
+            >
+              <option value="All">All Categories</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+
+            {hasActiveStatsFilter && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStatsStatusFilter('Total');
+                  setStatsCategoryFilter('All');
+                }}
+                className="px-2 py-1 rounded-lg text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5 w-full min-w-0">
@@ -651,11 +806,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div>
               <div className="flex items-baseline justify-between gap-1">
                 <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {stats.total}
+                  {effectiveTotal}
                 </span>
                 <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-0.5">
-                  <TrendingUp className="w-3 h-3" />
-                  <span>+12%</span>
+                  <span>Unique EDFs</span>
                 </span>
               </div>
 
@@ -801,15 +955,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div className="mt-1 flex items-center justify-between gap-1 text-[11px]">
                     {card.id === 'Pending' ? (
                       <span className="text-amber-700 dark:text-amber-300 font-extrabold text-[10px]">
-                        {card.count} EDFs • 0 items received
+                        {card.count} Unique EDF{card.count === 1 ? '' : 's'} • Awaiting intake
                       </span>
                     ) : card.id === 'Partially Received' ? (
                       <span className="text-sky-700 dark:text-sky-300 font-extrabold text-[10px]">
-                        {card.count} EDFs • {partiallyReceivedItemProgress.recItems}/{partiallyReceivedItemProgress.totItems || 1} items received
+                        {card.count} Unique EDF{card.count === 1 ? '' : 's'} • In-progress intake
                       </span>
                     ) : card.id === 'Received' ? (
                       <span className="text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px]">
-                        {card.count} EDFs • All items received
+                        {card.count} Unique EDF{card.count === 1 ? '' : 's'} • Fulfilled
                       </span>
                     ) : isOverdueAlert ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-rose-600 text-white font-black text-[10px] animate-pulse">
@@ -831,11 +985,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Partially Received Tracking Box (Requirement 6) */}
-      {edfs.some(
-        (e) =>
-          e.status === 'Partially Received' ||
-          ((e.receivedItemsCount || 0) > 0 && (e.receivedItemsCount || 0) < (e.totalItemsCount || 1))
-      ) && (
+      {partiallyReceivedUniqueEdfs.length > 0 && (
         <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50/40 dark:from-sky-950/30 dark:to-indigo-950/20 border border-sky-200 dark:border-sky-900 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
@@ -846,7 +996,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <span>Partially Received Demands (In-Progress Intake)</span>
                   <span className="px-2 py-0.2 rounded-full text-[10px] font-extrabold bg-sky-200 dark:bg-sky-900 text-sky-800 dark:text-sky-200">
-                    Tracked under Pending
+                    {partiallyReceivedUniqueEdfs.length} Unique EDF{partiallyReceivedUniqueEdfs.length === 1 ? '' : 's'}
                   </span>
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -864,24 +1014,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {edfs
-              .filter(
-                (e) =>
-                  e.status === 'Partially Received' ||
-                  ((e.receivedItemsCount || 0) > 0 &&
-                    (e.receivedItemsCount || 0) < (e.totalItemsCount || 1))
-              )
+            {partiallyReceivedUniqueEdfs
               .slice(0, 6)
               .map((item) => {
-                const rawItems = item.items || [];
-                const totalCount =
-                  item.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-                const receivedCount =
-                  item.receivedItemsCount ??
-                  rawItems.filter((i) => i.status === 'Received').length;
+                const state = getEffectiveEdfState(item);
+                const totalCount = state.totalItems;
+                const receivedCount = state.receivedItems;
                 return (
                   <div
-                    key={item.id}
+                    key={item.edfNumber || item.id}
                     onClick={() => onFilterNavigate('status', 'Partially Received')}
                     className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-sky-100 dark:border-sky-900/60 shadow-xs hover:border-sky-300 dark:hover:border-sky-700 transition-all cursor-pointer flex flex-col justify-between space-y-2.5"
                   >
@@ -1091,12 +1232,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <h4 className="text-xs font-black text-slate-900 dark:text-white">
               Category Distribution
             </h4>
-            <span className="text-xs text-slate-400 font-mono font-bold">Total: {stats.total}</span>
+            <span className="text-xs text-slate-400 font-mono font-bold">Total: {effectiveTotal}</span>
           </div>
 
           <div className="space-y-3">
-            {stats.categoryDistribution.map((item) => {
-              const pct = stats.total > 0 ? Math.round((item.count / stats.total) * 100) : 0;
+            {effectiveCategoryDistribution.map((item) => {
+              const pct = effectiveTotal > 0 ? Math.round((item.count / effectiveTotal) * 100) : 0;
               const CatIcon = getCategoryIcon(item.name);
               const barGradient = getCategoryBarGradient(item.name);
 
@@ -1135,37 +1276,37 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <h4 className="text-sm font-bold text-slate-900 dark:text-white">
               Status Breakdown
             </h4>
-            <span className="text-xs text-slate-400">Progress</span>
+            <span className="text-xs text-slate-400">Unique EDFs</span>
           </div>
 
           {/* Large Visual Progress Bar */}
           <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden flex mb-6">
             <div
               className="h-full bg-amber-500 transition-all"
-              style={{ width: `${(stats.pending / total) * 100}%` }}
-              title={`Pending: ${stats.pending}`}
+              style={{ width: `${(effectivePending / total) * 100}%` }}
+              title={`Pending: ${effectivePending}`}
             />
             <div
               className="h-full bg-sky-500 transition-all"
-              style={{ width: `${((stats.partiallyReceived || 0) / total) * 100}%` }}
-              title={`Partially Received: ${stats.partiallyReceived || 0}`}
+              style={{ width: `${(effectivePartiallyReceived / total) * 100}%` }}
+              title={`Partially Received: ${effectivePartiallyReceived}`}
             />
             <div
               className="h-full bg-emerald-500 transition-all"
-              style={{ width: `${(stats.received / total) * 100}%` }}
-              title={`Received: ${stats.received}`}
+              style={{ width: `${(effectiveReceived / total) * 100}%` }}
+              title={`Received: ${effectiveReceived}`}
             />
             <div
               className="h-full bg-rose-500 transition-all"
-              style={{ width: `${(stats.overdue / total) * 100}%` }}
-              title={`Overdue: ${stats.overdue}`}
+              style={{ width: `${(effectiveOverdue / total) * 100}%` }}
+              title={`Overdue: ${effectiveOverdue}`}
             />
           </div>
 
           {/* Details list */}
           <div className="space-y-3">
-            {stats.statusDistribution.map((st) => {
-              const pct = stats.total > 0 ? Math.round((st.count / stats.total) * 100) : 0;
+            {effectiveStatusDistribution.map((st) => {
+              const pct = effectiveTotal > 0 ? Math.round((st.count / effectiveTotal) * 100) : 0;
               return (
                 <div
                   key={st.name}

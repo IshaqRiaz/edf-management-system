@@ -6,7 +6,7 @@ import { ReceivingProgressBar } from './ReceivingProgressBar.tsx';
 import { BarcodeScannerModal } from './BarcodeScannerModal.tsx';
 import { exportEDFsToMultiRowCSV } from '../utils/csvExport.ts';
 import { generateMergedEdfPdf } from '../utils/pdfGenerator.ts';
-import { deduplicateEdfsByNumber } from '../utils/exportHelpers.ts';
+import { deduplicateEdfsByNumber, countUniqueEdfsById } from '../utils/exportHelpers.ts';
 import { useTheme } from '../context/ThemeContext.tsx';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
 import {
@@ -188,18 +188,21 @@ export const EDFList: React.FC<EDFListProps> = ({
   // When active (true by default), non-matching items are visually dimmed while matches are highlighted
   const [dimNonMatching, setDimNonMatching] = useState<boolean>(true);
 
-  // Search match statistics across all EDFs
+  // Search match statistics across unique EDF numbers
   const searchMatchStats = useMemo(() => {
     if (!search.trim()) {
       return { totalMatches: 0, matchingIds: new Set<number>() };
     }
     const matchingIds = new Set<number>();
+    const matchingEdfNumbers = new Set<string>();
     for (const item of edfs) {
       if (checkEdfMatchesSearch(item, search).isMatch) {
         matchingIds.add(item.id);
+        const key = String(item.edfNumber || '').trim().toLowerCase() || `__id_${item.id}`;
+        matchingEdfNumbers.add(key);
       }
     }
-    return { totalMatches: matchingIds.size, matchingIds };
+    return { totalMatches: matchingEdfNumbers.size, matchingIds };
   }, [edfs, search]);
 
   // Tab switching handler
@@ -405,6 +408,19 @@ export const EDFList: React.FC<EDFListProps> = ({
     });
   }, [edfs, selectedCategory, selectedStatus, overdueOnly, search, dateFilter, dimNonMatching]);
 
+  // Unique EDF records matching current filter (counted by unique EDF ID / Number)
+  const uniqueFilteredEdfs = useMemo(() => {
+    return deduplicateEdfsByNumber(filteredEdfs);
+  }, [filteredEdfs]);
+
+  const uniqueFilteredCountById = useMemo(() => {
+    return countUniqueEdfsById(uniqueFilteredEdfs);
+  }, [uniqueFilteredEdfs]);
+
+  const totalUniqueCountById = useMemo(() => {
+    return countUniqueEdfsById(deduplicateEdfsByNumber(edfs));
+  }, [edfs]);
+
   // Bulk selection handlers
   const handleSelectAll = () => {
     if (selectedIds.length === filteredEdfs.length) {
@@ -521,6 +537,26 @@ export const EDFList: React.FC<EDFListProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Dynamic Unique EDF Count Indicator Above the Export Section (By EDF ID, not Material Rows) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-slate-900 text-white dark:bg-slate-800/90 border border-slate-700/80 shadow-xs">
+        <div className="flex items-center gap-2 text-xs font-bold">
+          <Layers className="w-4 h-4 text-indigo-400 shrink-0" />
+          <span>Unique EDFs Matching Current Filters (by ID):</span>
+          <span className="font-mono font-black text-sm text-indigo-300 tabular-nums">
+            {uniqueFilteredCountById}
+          </span>
+          <span className="text-slate-400 font-medium">
+            of {totalUniqueCountById} unique EDF{totalUniqueCountById === 1 ? '' : 's'}
+          </span>
+        </div>
+        <span className="text-[11px] font-semibold text-slate-300">
+          Tab: <strong className="text-white">{activeTab} EDF</strong>
+          {selectedCategory !== 'All' && (
+            <> • Category: <strong className="text-white">{selectedCategory}</strong></>
+          )}
+        </span>
+      </div>
+
       {/* Clickable EDF Category / Status Tabs with inside Export Button */}
       <div className="p-3.5 sm:p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
@@ -688,7 +724,10 @@ export const EDFList: React.FC<EDFListProps> = ({
           </div>
 
           {/* Active Tab Direct Export CTA Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+              Showing <span className="font-mono font-black text-slate-900 dark:text-white">{uniqueFilteredCountById}</span> Unique EDF{uniqueFilteredCountById === 1 ? '' : 's'}
+            </span>
             <button
               type="button"
               onClick={() => handleExportTab(activeTab)}
@@ -774,22 +813,23 @@ export const EDFList: React.FC<EDFListProps> = ({
             </button>
 
             <button
-              onClick={() => onExportCSV(filteredEdfs)}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs transition-all cursor-pointer"
-              title="Export current filtered list to CSV"
+              onClick={() => onExportCSV(uniqueFilteredEdfs)}
+              disabled={uniqueFilteredEdfs.length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-40"
+              title={`Export ${uniqueFilteredEdfs.length} matching unique EDF${uniqueFilteredEdfs.length === 1 ? '' : 's'} to CSV`}
             >
               <Download className="w-3.5 h-3.5 text-slate-500" />
-              <span>Export CSV</span>
+              <span>Export CSV ({uniqueFilteredEdfs.length})</span>
             </button>
 
             <button
-              onClick={() => generateMergedEdfPdf(filteredEdfs, `${activeTab}_Filtered`)}
-              disabled={filteredEdfs.length === 0}
+              onClick={() => generateMergedEdfPdf(uniqueFilteredEdfs, `${activeTab}_Filtered`)}
+              disabled={uniqueFilteredEdfs.length === 0}
               className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-rose-200 dark:border-rose-900 hover:border-rose-300 bg-rose-50/70 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-40"
-              title="Export current filtered list to PDF with vertically merged EDF Numbers"
+              title={`Export ${uniqueFilteredEdfs.length} matching unique EDF${uniqueFilteredEdfs.length === 1 ? '' : 's'} to PDF with vertically merged EDF Numbers`}
             >
               <FileDown className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              <span>Export PDF</span>
+              <span>Export PDF ({uniqueFilteredEdfs.length})</span>
             </button>
 
             <button

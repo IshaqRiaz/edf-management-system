@@ -1,5 +1,6 @@
 // IndexedDB Offline Storage and Sync Engine for EDF Management System
 import { EDF, Category, DashboardStats, User, EDFStatusHistory } from '../types.ts';
+import { deduplicateEdfsByNumber, getEffectiveEdfState } from './exportHelpers.ts';
 
 const DB_NAME = 'edf_system_db';
 const DB_VERSION = 2;
@@ -415,10 +416,12 @@ export async function getLocalAuditLogs(): Promise<EDFStatusHistory[]> {
   }
 }
 
-// Compute client-side stats from local EDF array (for offline dashboard calculations)
+// Compute client-side stats from local EDF array counted strictly by unique EDF Number strings
 export function computeStatsFromEDFs(edfs: EDF[]): DashboardStats {
+  const uniqueEdfs = deduplicateEdfsByNumber(edfs);
+
   const stats: DashboardStats = {
-    total: edfs.length,
+    total: uniqueEdfs.length,
     hvac: 0,
     plumbing: 0,
     generator: 0,
@@ -442,9 +445,9 @@ export function computeStatsFromEDFs(edfs: EDF[]): DashboardStats {
     Overdue: 0,
   };
 
-  const now = new Date();
+  const nowMs = Date.now();
 
-  for (const edf of edfs) {
+  for (const edf of uniqueEdfs) {
     // Categories
     const cat = edf.category || 'General';
     categoryMap[cat] = (categoryMap[cat] || 0) + 1;
@@ -456,20 +459,17 @@ export function computeStatsFromEDFs(edfs: EDF[]): DashboardStats {
     else if (lowerCat.includes('elect')) stats.electrical++;
     else stats.general++;
 
-    // Items calculation
-    const rawItems = edf.items || [];
-    const totalCount = edf.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-    const recCount = edf.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
+    // Unique EDF receiving & overdue state
+    const state = getEffectiveEdfState(edf, nowMs);
+    if (state.isOverdue) {
+      stats.overdue++;
+      statusMap['Overdue']++;
+    }
 
-    // Check overdue
-    const reqDate = new Date(edf.requiredDate);
-    const isOverdue = edf.status !== 'Received' && reqDate.getTime() < now.getTime();
-    if (isOverdue) stats.overdue++;
-
-    if (edf.status === 'Received' || (recCount >= totalCount && totalCount > 0)) {
+    if (state.isReceived) {
       stats.received++;
       statusMap['Received']++;
-    } else if (edf.status === 'Partially Received' || (recCount > 0 && recCount < totalCount)) {
+    } else if (state.isPartiallyReceived) {
       stats.partiallyReceived++;
       statusMap['Partially Received']++;
     } else {

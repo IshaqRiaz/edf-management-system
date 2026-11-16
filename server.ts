@@ -1750,30 +1750,61 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
     }
     const now = new Date();
 
-    // Map computed status and overdue with partial receiving support
-    const list = allEdfs.map((item) => {
-      const items = itemsByEdfId.get(item.id) || [];
-      const totalCount = items.length;
+    // Deduplicate EDFs strictly by unique EDF Number string so multiple records or material rows count as 1 unique EDF
+    const uniqueEdfMap = new Map<string, { record: any; items: any[] }>();
+    for (const item of allEdfs) {
+      const normKey = String(item.edfNumber || '').trim().toLowerCase() || `__id_${item.id}`;
+      const rawItems = itemsByEdfId.get(item.id) || [];
+      if (!uniqueEdfMap.has(normKey)) {
+        uniqueEdfMap.set(normKey, { record: item, items: [...rawItems] });
+      } else {
+        const entry = uniqueEdfMap.get(normKey)!;
+        for (const inc of rawItems) {
+          const isDup = entry.items.some(
+            (cur) =>
+              (cur.id !== undefined && inc.id !== undefined && cur.id === inc.id) ||
+              (String(cur.itemDescription || '').trim().toLowerCase() ===
+                String(inc.itemDescription || '').trim().toLowerCase() &&
+                Number(cur.quantity ?? 1) === Number(inc.quantity ?? 1) &&
+                String(cur.unit || '').trim().toLowerCase() ===
+                  String(inc.unit || '').trim().toLowerCase())
+          );
+          if (!isDup) entry.items.push(inc);
+        }
+      }
+    }
+
+    // Map computed status and overdue with partial receiving support across unique EDF Numbers
+    const list = Array.from(uniqueEdfMap.values()).map(({ record: item, items }) => {
+      const totalCount = items.length > 0 ? items.length : 1;
       const receivedCount = items.filter((it) => it.status === 'Received').length;
       const isPast = parseRequiredDateServer(item.requiredDate).getTime() < now.getTime();
 
-      let currentStatus = item.status;
-      if (item.status === 'Completed' || (totalCount > 0 && receivedCount === totalCount)) {
-        currentStatus = 'Received';
-      } else if (totalCount > 0 && receivedCount > 0) {
-        currentStatus = 'Partially Received';
-      } else if (isPast) {
-        currentStatus = 'Overdue';
-      } else {
-        currentStatus = 'Pending';
-      }
+      const isReceived =
+        item.status === 'Received' ||
+        item.status === 'Completed' ||
+        (items.length > 0 && receivedCount >= items.length);
+      const isPartiallyReceived =
+        !isReceived &&
+        (item.status === 'Partially Received' || (receivedCount > 0 && receivedCount < totalCount));
+      const isOverdue = !isReceived && (item.status === 'Overdue' || isPast);
+      const isPending = !isReceived && !isPartiallyReceived;
 
-      const isOverdue = currentStatus !== 'Received' && isPast;
+      const currentStatus = isReceived
+        ? 'Received'
+        : isOverdue
+        ? 'Overdue'
+        : isPartiallyReceived
+        ? 'Partially Received'
+        : 'Pending';
 
       return {
         ...item,
         status: currentStatus,
         isOverdue,
+        isReceived,
+        isPartiallyReceived,
+        isPending,
         receivedItemsCount: receivedCount,
         totalItemsCount: totalCount,
       };
@@ -1787,10 +1818,10 @@ app.get('/api/dashboard/stats', authenticate, async (_req: Request, res: Respons
     const electrical = list.filter((e) => e.category.toLowerCase() === 'electrical').length;
     const general = list.filter((e) => e.category.toLowerCase() === 'general').length;
 
-    // Per Prompt Requirements: Pending (0 received), Partially Received (1..n-1 received), Received (all received)
-    const partiallyReceived = list.filter((e) => e.status === 'Partially Received').length;
-    const pending = list.filter((e) => e.status === 'Pending').length;
-    const received = list.filter((e) => e.status === 'Received').length;
+    // Counted by unique EDF Number: Pending (0 received), Partially Received (1..n-1 received), Received (all received)
+    const partiallyReceived = list.filter((e) => e.isPartiallyReceived).length;
+    const pending = list.filter((e) => e.isPending).length;
+    const received = list.filter((e) => e.isReceived).length;
     const overdue = list.filter((e) => e.isOverdue).length;
 
     // Recent activity logs (deduplicated against duplicate creation events, preserving all genuine activities)

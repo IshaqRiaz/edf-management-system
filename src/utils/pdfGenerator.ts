@@ -47,21 +47,21 @@ export function resolveJsPDFConstructor(): typeof jsPDF {
 }
 
 /**
- * Computes vertical `rowSpan` grouping for flat material rows belonging to the same EDF ID,
- * merging the `'EDF Number'` cell vertically across consecutive/grouped rows instead of repeating it.
+ * Computes vertical `rowSpan` grouping for flat material rows belonging to the same EDF Number,
+ * merging the `'EDF Number'` cell vertically across all material rows instead of repeating it.
  */
 export function buildFlatRowsWithEdfNumberRowSpan(
   flatRows: FlatEDFMaterialRowInput[]
 ): Record<string, any>[] {
   if (!flatRows || flatRows.length === 0) return [];
 
-  // Group rows by EDF ID while preserving first-seen order
+  // Group rows by normalized EDF Number (falling back to EDF ID only if EDF Number is empty)
   const groups = new Map<string, FlatEDFMaterialRowInput[]>();
   for (const row of flatRows) {
-    const key =
-      row.edfId !== undefined && row.edfId !== null && String(row.edfId).trim() !== ''
-        ? `id:${String(row.edfId).trim()}`
-        : `num:${String(row.edfNumber || '').trim().toLowerCase()}`;
+    const normNum = String(row.edfNumber || '').trim().toLowerCase();
+    const key = normNum
+      ? `num:${normNum}`
+      : `id:${String(row.edfId ?? '').trim()}`;
     if (!groups.has(key)) {
       groups.set(key, []);
     }
@@ -227,6 +227,38 @@ export function buildPdfRowsWithEdfRowSpan(edfs: EDF[]): PdfRowSpanTableResult {
   };
 }
 
+export interface EdfPdfTableStructure {
+  columns: { header: string; dataKey: string }[];
+  body: Record<string, any>[];
+  uniqueEdfCount: number;
+  totalMaterialRows: number;
+}
+
+export const EDF_PDF_TABLE_COLUMNS: { header: string; dataKey: string }[] = [
+  { header: 'EDF Number', dataKey: 'edfNumber' },
+  { header: 'Requester & Dept', dataKey: 'requesterDept' },
+  { header: 'Issue / Req Date', dataKey: 'dates' },
+  { header: 'Material Item', dataKey: 'material' },
+  { header: 'Qty / Unit', dataKey: 'qtyUnit' },
+  { header: 'Item Status', dataKey: 'itemStatus' },
+  { header: 'EDF Status', dataKey: 'edfStatus' },
+];
+
+/**
+ * Takes an array of EDFs and generates a complete `jspdf-autotable` table structure
+ * (`columns` + `body`) where `'EDF Number'` column cells are merged vertically (`rowSpan`)
+ * for all material items belonging to the same EDF ID.
+ */
+export function generateEdfPdfTableStructure(edfs: EDF[]): EdfPdfTableStructure {
+  const { rows, uniqueEdfCount, totalMaterialRows } = buildPdfRowsWithEdfRowSpan(edfs);
+  return {
+    columns: EDF_PDF_TABLE_COLUMNS,
+    body: rows,
+    uniqueEdfCount,
+    totalMaterialRows,
+  };
+}
+
 /**
  * Exports EDF records to a formatted PDF document where the `'EDF Number'` cell
  * is merged vertically across all individual material rows sharing the same EDF ID.
@@ -244,8 +276,8 @@ export function generateMergedEdfPdf(
 
   const uniqueEdfs = deduplicateEdfsByNumber(edfs);
   const stats = countUniqueEdfStats(uniqueEdfs);
-  const { rows: bodyRows, uniqueEdfCount, totalMaterialRows } =
-    buildPdfRowsWithEdfRowSpan(uniqueEdfs);
+  const { columns, body: bodyRows, uniqueEdfCount, totalMaterialRows } =
+    generateEdfPdfTableStructure(uniqueEdfs);
 
   if (uniqueEdfCount === 0 || totalMaterialRows === 0) {
     return { success: false, count: 0, totalRows: 0 };
@@ -306,15 +338,7 @@ export function generateMergedEdfPdf(
 
   autoTable(doc, {
     startY: currentY,
-    columns: [
-      { header: 'EDF Number', dataKey: 'edfNumber' },
-      { header: 'Requester & Dept', dataKey: 'requesterDept' },
-      { header: 'Issue / Req Date', dataKey: 'dates' },
-      { header: 'Material Item', dataKey: 'material' },
-      { header: 'Qty / Unit', dataKey: 'qtyUnit' },
-      { header: 'Item Status', dataKey: 'itemStatus' },
-      { header: 'EDF Status', dataKey: 'edfStatus' },
-    ],
+    columns,
     body: bodyRows,
     theme: 'grid',
     showHead: 'everyPage',

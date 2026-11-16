@@ -6,6 +6,7 @@ import { getLocalAuditLogs } from '../utils/offlineStorage.ts';
 import {
   ExportFilterType,
   countUniqueEdfStats,
+  countUniqueEdfsById,
   filterEdfsForExport,
   getEdfMaterialRows,
   getEffectiveEdfState,
@@ -105,13 +106,16 @@ export const Reports: React.FC<ReportsProps> = ({
     return uniqueAllEdfs.map((e) => e.edfNumber).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [uniqueAllEdfs]);
 
+  const uniqueEdfCountById = useMemo(() => countUniqueEdfsById(filtered), [filtered]);
+  const totalUniqueEdfCountById = useMemo(() => countUniqueEdfsById(uniqueAllEdfs), [uniqueAllEdfs]);
+
   const filteredStats = useMemo(() => countUniqueEdfStats(filtered), [filtered]);
   const filteredTotal = filteredStats.total || 1;
   const receivedCount = filteredStats.received;
   const partiallyReceivedCount = filteredStats.partiallyReceived;
   const overdueCount = filteredStats.overdue;
   const pendingCount = filteredStats.pending;
-  const fulfillmentRate = filtered.length > 0 ? Math.round((receivedCount / filteredTotal) * 100) : 0;
+  const fulfillmentRate = uniqueEdfCountById > 0 ? Math.round((receivedCount / filteredTotal) * 100) : 0;
 
   const activeFilterLabel = useMemo(() => {
     return getExportFilterLabel({
@@ -339,34 +343,59 @@ export const Reports: React.FC<ReportsProps> = ({
     <div className="space-y-6">
       {/* Header with Navigation Pills & Primary Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 shadow-xs">
+        <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+          <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 shadow-xs shrink-0">
             <BarChart3 className="w-6 h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
                 Reports & Export Center
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
                 Unique EDF Grouping
               </span>
+              {activeReportTab === 'analytics' ? (
+                <span
+                  data-testid="export-header-unique-count"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs"
+                >
+                  <span className="font-mono">{filtered.length}</span>
+                  <span>
+                    Matching Unique EDF{filtered.length === 1 ? '' : 's'}
+                  </span>
+                  <span className="opacity-75 font-semibold">
+                    ({activeFilterDisplay}{selectedCategory !== 'All' ? ` • ${selectedCategory}` : ''})
+                  </span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs">
+                  <span className="font-mono">{filteredLogs.length}</span>
+                  <span>Audit Log{filteredLogs.length === 1 ? '' : 's'}</span>
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Filter by status or specific EDF number, preview grouped material rows, and export consistent PDF & CSV reports.
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {activeReportTab === 'analytics' ? (
+                <>
+                  Ready to export <strong className="text-slate-800 dark:text-slate-200">{filtered.length}</strong> unique EDF{filtered.length === 1 ? '' : 's'} ({totalMaterialItems} material row{totalMaterialItems === 1 ? '' : 's'}) out of {uniqueCounts.total} total unique EDF{uniqueCounts.total === 1 ? '' : 's'}.
+                </>
+              ) : (
+                'Filter by action or actor role and export receipt & completion audit trail reports.'
+              )}
             </p>
           </div>
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {activeReportTab === 'analytics' ? (
             <>
               <button
                 onClick={handleDownloadPdf}
                 disabled={isGeneratingPdf || filtered.length === 0}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md shadow-rose-600/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-                title="Generate and download formatted PDF report of filtered unique EDF records"
+                title={`Generate and download formatted PDF report of ${filtered.length} matching unique EDF record${filtered.length === 1 ? '' : 's'}`}
               >
                 <FileDown className={`w-4 h-4 ${isGeneratingPdf ? 'animate-bounce' : ''}`} />
                 <span>{isGeneratingPdf ? 'Generating PDF...' : `Download Report PDF (${filtered.length})`}</span>
@@ -385,7 +414,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 onClick={handleDownloadCsv}
                 disabled={filtered.length === 0}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                title="Export filtered unique EDF records as grouped CSV"
+                title={`Export ${filtered.length} matching unique EDF record${filtered.length === 1 ? '' : 's'} as grouped CSV`}
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Export CSV ({filtered.length})</span>
@@ -486,21 +515,66 @@ export const Reports: React.FC<ReportsProps> = ({
       {/* ========================================================================= */}
       {activeReportTab === 'analytics' && (
         <div className="space-y-6">
+          {/* Dynamic Unique EDF Count Banner Above the Export Section (Calculated by EDF ID, not Material Rows) */}
+          <div
+            data-testid="unique-edf-count-display"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-800 to-rose-950 dark:from-slate-900 dark:via-slate-900 dark:to-rose-950/80 text-white border border-slate-700/80 shadow-md"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="p-2.5 rounded-2xl bg-rose-500/20 border border-rose-400/30 text-rose-300 shrink-0">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-black tracking-wide text-slate-200">
+                    Unique EDFs Selected for Export
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/10 text-rose-200 border border-white/15">
+                    Counted by EDF ID
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Active Filter:{' '}
+                  <strong className="text-white">{activeFilterDisplay}</strong>
+                  {selectedCategory !== 'All' && (
+                    <span>
+                      {' '}• Category: <strong className="text-white">{selectedCategory}</strong>
+                    </span>
+                  )}{' '}
+                  <span className="text-slate-400">
+                    (covers {totalMaterialItems} individual material row{totalMaterialItems === 1 ? '' : 's'})
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 self-start sm:self-auto shrink-0">
+              <div className="px-4 py-2 rounded-2xl bg-white/10 border border-white/15 text-right backdrop-blur-sm">
+                <div className="text-2xl sm:text-3xl font-black font-mono tabular-nums leading-none text-white">
+                  {uniqueEdfCountById}
+                </div>
+                <div className="text-[10px] font-bold text-rose-200 mt-1">
+                  of {totalUniqueEdfCountById} Unique EDF{totalUniqueEdfCountById === 1 ? '' : 's'}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Export Filters & EDF-Number-Based Counting Bar */}
           <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs font-black text-slate-800 dark:text-slate-100">
                 <Filter className="w-4 h-4 text-rose-500" />
-                <span>Export Filters (Counted by Unique EDF Number)</span>
+                <span>Export Filters (Counted by Unique EDF ID)</span>
               </div>
 
               {/* Pre-Export Unique EDF Count Summary */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <div className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 font-bold">
                   Matching Unique EDFs:{' '}
-                  <span className="font-mono text-sm font-black">{filtered.length}</span>
+                  <span className="font-mono text-sm font-black">{uniqueEdfCountById}</span>
                   <span className="text-rose-500/80 dark:text-rose-400/80 font-semibold ml-1.5">
-                    of {uniqueCounts.total} unique EDF{uniqueCounts.total === 1 ? '' : 's'}
+                    of {totalUniqueEdfCountById} unique EDF{totalUniqueEdfCountById === 1 ? '' : 's'}
                   </span>
                 </div>
                 <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold">

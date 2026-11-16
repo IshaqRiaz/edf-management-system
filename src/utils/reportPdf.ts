@@ -6,6 +6,7 @@ import {
   deduplicateEdfsByNumber,
 } from './exportHelpers.ts';
 import {
+  EDF_PDF_TABLE_COLUMNS,
   buildPdfRowsWithEdfRowSpan,
   resolveJsPDFConstructor,
 } from './pdfGenerator.ts';
@@ -200,15 +201,7 @@ export function generateReportPdf({
 
   autoTable(doc, {
     startY: detailStartY,
-    columns: [
-      { header: 'EDF Number', dataKey: 'edfNumber' },
-      { header: 'Requester & Dept', dataKey: 'requesterDept' },
-      { header: 'Issue / Req Date', dataKey: 'dates' },
-      { header: 'Material Item', dataKey: 'material' },
-      { header: 'Qty / Unit', dataKey: 'qtyUnit' },
-      { header: 'Item Status', dataKey: 'itemStatus' },
-      { header: 'EDF Status', dataKey: 'edfStatus' },
-    ],
+    columns: EDF_PDF_TABLE_COLUMNS,
     body: detailRows,
     theme: 'grid',
     showHead: 'everyPage',
