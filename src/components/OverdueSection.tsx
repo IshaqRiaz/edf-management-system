@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { EDF } from '../types.ts';
 import { TimerBadge } from './TimerBadge.tsx';
 import { exportEDFsToMultiRowCSV } from '../utils/csvExport.ts';
+import { generateMergedEdfPdf } from '../utils/pdfGenerator.ts';
+import { deduplicateEdfsByNumber } from '../utils/exportHelpers.ts';
 import {
   AlertOctagon,
   Clock,
@@ -13,6 +15,7 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   Download,
+  FileDown,
   Check,
 } from 'lucide-react';
 
@@ -33,8 +36,8 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
   onMarkStatus,
   isAdmin,
 }) => {
-  // Filter only overdue EDFs (Received demands are NOT overdue)
-  const overdueEdfs = edfs.filter((item) => {
+  // Filter only overdue unique EDFs (Received demands are NOT overdue)
+  const overdueEdfs = deduplicateEdfsByNumber(edfs).filter((item) => {
     if (item.status === 'Received') return false;
     if (item.status === 'Overdue' || item.isOverdue) return true;
     const isPast = new Date(item.requiredDate).getTime() < Date.now();
@@ -82,6 +85,19 @@ export const OverdueSection: React.FC<OverdueSectionProps> = ({
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export Overdue CSV</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (overdueEdfs.length === 0) return;
+                generateMergedEdfPdf(overdueEdfs, 'Overdue_EDF');
+              }}
+              disabled={overdueEdfs.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-900/60 hover:bg-rose-950/70 text-white border border-white/25 font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
+              title="Export all Overdue EDF records with vertically merged EDF Numbers to PDF"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Export Overdue PDF</span>
             </button>
 
             <button

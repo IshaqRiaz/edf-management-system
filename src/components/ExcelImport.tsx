@@ -587,7 +587,8 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
     }
 
     try {
-      const workbook = XLSX.read(csvText, { type: 'string' });
+      const cleanCsvText = csvText.replace(/^\uFEFF/, '');
+      const workbook = XLSX.read(cleanCsvText, { type: 'string' });
       const firstSheet = workbook.SheetNames[0];
       if (!firstSheet || !workbook.Sheets[firstSheet]) {
         setFileError('Could not find any readable content in the CSV file.');
@@ -633,9 +634,10 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
         return '';
       };
 
-      // Group records by EDF Number
+      // Group records by unique EDF Number (supporting both repeated and grouped single-EDF-number CSV rows)
       const edfMap = new Map<string, ExtractedCSVEdf>();
       let autoCounter = 1;
+      let lastExplicitEdfNumber = '';
 
       for (let i = 0; i < rawRows.length; i++) {
         const row = rawRows[i];
@@ -663,10 +665,6 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
           'number',
           'ref',
         ]);
-        if (!rawEdfNum) {
-          rawEdfNum = `EDF-CSV-${String(autoCounter).padStart(3, '0')}`;
-          autoCounter++;
-        }
 
         const requester = findValue(row, ['requestername', 'requester', 'requestedby', 'name', 'user']) || 'Admin';
         const category = findValue(row, ['category', 'team', 'department', 'dept']) || 'General';
@@ -692,6 +690,19 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
         const quantityRaw = findValue(row, ['quantity', 'qty', 'count', 'amount']);
         const unitRaw = findValue(row, ['unit', 'uom', 'measurement']);
 
+        if (rawEdfNum) {
+          lastExplicitEdfNumber = rawEdfNum.trim();
+        } else if (
+          lastExplicitEdfNumber &&
+          (materialSummary || quantityRaw || unitRaw || progressRaw || remarks)
+        ) {
+          // Continuation material row belonging to the grouped EDF above
+          rawEdfNum = lastExplicitEdfNumber;
+        } else {
+          rawEdfNum = `EDF-CSV-${String(autoCounter).padStart(3, '0')}`;
+          autoCounter++;
+        }
+
         const parsedIssueDate = parseDateToISO(issueDateRaw, new Date());
         const parsedRequiredDate = parseDateToISO(requiredDateRaw, new Date(Date.now() + 3 * 86400000));
 
@@ -702,14 +713,16 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
           calculatedStatus = isOverdue ? 'Overdue' : 'Pending';
         }
 
+        const edfGroupKey = rawEdfNum.trim().toLowerCase();
+
         // Check if EDF Number already exists in the system
         const existingMatch = existingEdfs?.find(
-          (e) => e.edfNumber.trim().toLowerCase() === rawEdfNum.trim().toLowerCase()
+          (e) => e.edfNumber.trim().toLowerCase() === edfGroupKey
         );
 
-        if (!edfMap.has(rawEdfNum)) {
-          edfMap.set(rawEdfNum, {
-            edfNumber: rawEdfNum,
+        if (!edfMap.has(edfGroupKey)) {
+          edfMap.set(edfGroupKey, {
+            edfNumber: rawEdfNum.trim(),
             requesterName: requester,
             category,
             issueDate: parsedIssueDate,
@@ -721,7 +734,7 @@ export const ExcelImport: React.FC<ExcelImportProps> = ({
           });
         }
 
-        const edfRecord = edfMap.get(rawEdfNum)!;
+        const edfRecord = edfMap.get(edfGroupKey)!;
 
         // Check if item was received
         const normProg = progressRaw.toLowerCase();

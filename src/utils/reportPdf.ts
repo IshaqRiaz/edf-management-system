@@ -1,13 +1,32 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { EDF, Category } from '../types.ts';
+import {
+  countUniqueEdfStats,
+  deduplicateEdfsByNumber,
+} from './exportHelpers.ts';
+import {
+  buildPdfRowsWithEdfRowSpan,
+  resolveJsPDFConstructor,
+} from './pdfGenerator.ts';
 
-interface GenerateReportPdfOptions {
+export interface GenerateReportPdfOptions {
   edfs: EDF[];
   categories: Category[];
   selectedCategory: string;
   selectedStatus: string;
+  specificEdfNumber?: string;
+  filterLabel?: string;
   userName?: string;
+  autoSave?: boolean;
+}
+
+export function buildPdfDetailRows(uniqueEdfs: EDF[]): {
+  rows: Record<string, any>[];
+  totalMaterialRows: number;
+} {
+  const { rows, totalMaterialRows } = buildPdfRowsWithEdfRowSpan(uniqueEdfs);
+  return { rows, totalMaterialRows };
 }
 
 export function generateReportPdf({
@@ -15,9 +34,17 @@ export function generateReportPdf({
   categories,
   selectedCategory,
   selectedStatus,
+  specificEdfNumber = '',
+  filterLabel,
   userName = 'Coordinator',
+  autoSave = true,
 }: GenerateReportPdfOptions) {
-  const doc = new jsPDF({
+  const uniqueEdfs = deduplicateEdfsByNumber(edfs);
+  const uniqueCounts = countUniqueEdfStats(uniqueEdfs);
+  const { rows: detailRows, totalMaterialRows } = buildPdfDetailRows(uniqueEdfs);
+
+  const JsPDFCtor = resolveJsPDFConstructor();
+  const doc = new JsPDFCtor({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
@@ -55,30 +82,28 @@ export function generateReportPdf({
 
   // 3. FILTER INFORMATION BADGES
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  const filterDesc = `Category Filter: ${selectedCategory}   |   Status Filter: ${selectedStatus}   |   Total Filtered Records: ${edfs.length}`;
+  const activeStatusDisplay = filterLabel || selectedStatus || 'Total EDF';
+  const specificPart = specificEdfNumber.trim() ? `   |   EDF #: ${specificEdfNumber.trim()}` : '';
+  const filterDesc = `Filter: ${activeStatusDisplay}   |   Category: ${selectedCategory}${specificPart}   |   Unique EDFs: ${uniqueCounts.total}   |   Material Rows: ${totalMaterialRows}`;
   doc.setFillColor(241, 245, 249);
   doc.roundedRect(margin, currentY - 4, pageWidth - margin * 2, 7, 1.5, 1.5, 'F');
   doc.text(filterDesc, margin + 4, currentY + 1);
   currentY += 10;
 
-  // 4. EXECUTIVE SUMMARY KPIS
-  const total = edfs.length || 1;
-  const receivedCount = edfs.filter((e) => e.status === 'Received').length;
-  const partiallyReceivedCount = edfs.filter((e) => e.status === 'Partially Received').length;
-  const pendingCount = edfs.filter((e) => e.status === 'Pending').length;
-  const overdueCount = edfs.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Received').length;
-  const fulfillmentRate = Math.round((receivedCount / total) * 100);
+  // 4. EXECUTIVE SUMMARY KPIS (Strictly unique EDF-Number based)
+  const totalDivisor = uniqueCounts.total || 1;
+  const fulfillmentRate = Math.round((uniqueCounts.received / totalDivisor) * 100);
 
   const kpiBoxWidth = (pageWidth - margin * 2 - 12) / 4;
   const kpiBoxHeight = 16;
 
   const kpis = [
-    { title: 'Fulfillment Rate', value: `${fulfillmentRate}%`, color: [16, 185, 129] }, // Emerald
-    { title: 'Fully Received', value: `${receivedCount}`, color: [5, 150, 105] }, // Dark Emerald
-    { title: 'Partially Received', value: `${partiallyReceivedCount}`, color: [2, 132, 199] }, // Sky
-    { title: 'Overdue Demands', value: `${overdueCount}`, color: [225, 29, 72] }, // Rose
+    { title: 'Fulfillment Rate', value: `${fulfillmentRate}%`, color: [16, 185, 129] },
+    { title: 'Received EDF', value: `${uniqueCounts.received}`, color: [5, 150, 105] },
+    { title: 'Partially Received EDF', value: `${uniqueCounts.partiallyReceived}`, color: [2, 132, 199] },
+    { title: 'Overdue EDF', value: `${uniqueCounts.overdue}`, color: [225, 29, 72] },
   ];
 
   kpis.forEach((kpi, idx) => {
@@ -100,28 +125,34 @@ export function generateReportPdf({
 
   currentY += kpiBoxHeight + 8;
 
-  // 5. DEPARTMENTAL SUMMARY TABLE (AutoTable)
+  // 5. DEPARTMENTAL SUMMARY TABLE (AutoTable, counted by unique EDF Number)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
-  doc.text('Departmental Demand Breakdown', margin, currentY);
+  doc.text('Departmental Demand Breakdown (Unique EDF Count)', margin, currentY);
   currentY += 3;
 
   const catRows = categories.map((cat) => {
-    const catEdfs = edfs.filter((e) => e.category.toLowerCase() === cat.name.toLowerCase());
-    const count = catEdfs.length;
-    const received = catEdfs.filter((e) => e.status === 'Received').length;
-    const partiallyReceived = catEdfs.filter((e) => e.status === 'Partially Received').length;
-    const overdue = catEdfs.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Received').length;
-    const pending = count - received - partiallyReceived - overdue;
-    const share = Math.round((count / total) * 100);
+    const catEdfs = uniqueEdfs.filter(
+      (e) => String(e.category || '').toLowerCase() === cat.name.toLowerCase()
+    );
+    const catStats = countUniqueEdfStats(catEdfs);
+    const share = Math.round((catStats.total / totalDivisor) * 100);
 
-    return [cat.name, String(count), String(received), String(partiallyReceived), String(Math.max(pending, 0)), String(overdue), `${share}%`];
+    return [
+      cat.name,
+      String(catStats.total),
+      String(catStats.received),
+      String(catStats.partiallyReceived),
+      String(catStats.pending),
+      String(catStats.overdue),
+      `${share}%`,
+    ];
   });
 
   autoTable(doc, {
     startY: currentY,
-    head: [['Category', 'Total', 'Received', 'Partially Received', 'Pending', 'Overdue', 'Share']],
+    head: [['Category', 'Unique EDFs', 'Received', 'Partially Received', 'Pending', 'Overdue', 'Share']],
     body: catRows,
     theme: 'grid',
     headStyles: {
@@ -148,11 +179,10 @@ export function generateReportPdf({
     margin: { left: margin, right: margin },
   });
 
-  // 6. DETAILED RECORDS TABLE (AutoTable)
+  // 6. DETAILED RECORDS TABLE (Grouped with vertically merged EDF Number cell across material rows)
   const lastTableY = (doc as any).lastAutoTable?.finalY || currentY + 30;
   let detailStartY = lastTableY + 8;
 
-  // Check if we need a new page for detailed table
   if (detailStartY > pageHeight - 50) {
     doc.addPage();
     detailStartY = margin;
@@ -161,71 +191,52 @@ export function generateReportPdf({
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
-  doc.text(`Filtered Demand Form Records (${edfs.length} items)`, margin, detailStartY);
+  doc.text(
+    `Demand Form Records (${uniqueCounts.total} Unique EDF${uniqueCounts.total === 1 ? '' : 's'} • ${totalMaterialRows} Material Item${totalMaterialRows === 1 ? '' : 's'})`,
+    margin,
+    detailStartY
+  );
   detailStartY += 3;
-
-  const detailRows = edfs.map((item) => {
-    const isOverdue = item.status === 'Overdue' || item.isOverdue;
-    const issueDateStr = new Date(item.issueDate).toLocaleDateString();
-    const reqDateStr = new Date(item.requiredDate).toLocaleDateString();
-    const materialSummary = item.items && item.items.length > 0
-      ? item.items.map((i) => `${i.itemDescription} (${i.quantity} ${i.unit})`).join(', ')
-      : `${item.materialList} (${item.quantity} ${item.unit})`;
-
-    return [
-      item.edfNumber,
-      item.requesterName,
-      item.category,
-      issueDateStr,
-      reqDateStr,
-      materialSummary,
-      isOverdue ? 'Overdue' : item.status,
-    ];
-  });
 
   autoTable(doc, {
     startY: detailStartY,
-    head: [['EDF #', 'Requester', 'Category', 'Issue Date', 'Required Date', 'Items / Materials', 'Status']],
+    columns: [
+      { header: 'EDF Number', dataKey: 'edfNumber' },
+      { header: 'Requester & Dept', dataKey: 'requesterDept' },
+      { header: 'Issue / Req Date', dataKey: 'dates' },
+      { header: 'Material Item', dataKey: 'material' },
+      { header: 'Qty / Unit', dataKey: 'qtyUnit' },
+      { header: 'Item Status', dataKey: 'itemStatus' },
+      { header: 'EDF Status', dataKey: 'edfStatus' },
+    ],
     body: detailRows,
-    theme: 'striped',
+    theme: 'grid',
+    showHead: 'everyPage',
     headStyles: {
       fillColor: [30, 41, 59], // Slate-800
       textColor: 255,
       fontSize: 7.5,
       fontStyle: 'bold',
+      halign: 'center',
     },
     styles: {
       fontSize: 7,
       cellPadding: 2,
       textColor: [51, 65, 85],
       overflow: 'linebreak',
+      lineColor: [226, 232, 240],
+      lineWidth: 0.2,
     },
     columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 26 },
-      1: { cellWidth: 24 },
-      2: { cellWidth: 20 },
-      3: { cellWidth: 18, halign: 'center' },
-      4: { cellWidth: 18, halign: 'center' },
-      5: { cellWidth: 'auto' },
-      6: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
-    },
-    didParseCell: (data) => {
-      // Highlight Overdue rows
-      if (data.column.index === 6) {
-        const val = String(data.cell.raw).toLowerCase();
-        if (val.includes('overdue')) {
-          data.cell.styles.textColor = [225, 29, 72];
-        } else if (val.includes('partially')) {
-          data.cell.styles.textColor = [2, 132, 199];
-        } else if (val.includes('received') || val.includes('completed')) {
-          data.cell.styles.textColor = [5, 150, 105];
-        } else if (val.includes('pending')) {
-          data.cell.styles.textColor = [217, 119, 6];
-        }
-      }
+      edfNumber: { cellWidth: 23, fontStyle: 'bold', halign: 'center', valign: 'middle' },
+      requesterDept: { cellWidth: 27, valign: 'middle' },
+      dates: { cellWidth: 23, halign: 'center', valign: 'middle' },
+      material: { cellWidth: 'auto', valign: 'middle' },
+      qtyUnit: { cellWidth: 18, halign: 'center', valign: 'middle' },
+      itemStatus: { cellWidth: 19, halign: 'center', valign: 'middle', fontStyle: 'bold' },
+      edfStatus: { cellWidth: 19, halign: 'center', valign: 'middle', fontStyle: 'bold' },
     },
     didDrawPage: (data) => {
-      // Page Footer
       const totalPages = (doc.internal as any).getNumberOfPages();
       const currentPage = data.pageNumber;
 
@@ -248,13 +259,19 @@ export function generateReportPdf({
     margin: { left: margin, right: margin, bottom: 14 },
   });
 
-  // Generate filename with date
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const cleanCat = selectedCategory.replace(/[^a-zA-Z0-9]/g, '_');
-  const filename = `EDF_Report_${cleanCat}_${dateStr}.pdf`;
+  if (autoSave) {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const cleanFilter = (filterLabel || selectedStatus || 'Total')
+      .replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cleanCat = selectedCategory.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const specificSuffix = specificEdfNumber.trim()
+      ? `_${specificEdfNumber.trim().replace(/[^a-zA-Z0-9_-]/g, '_')}`
+      : '';
+    const filename = `EDF_Report_${cleanFilter}_${cleanCat}${specificSuffix}_${dateStr}.pdf`;
+    doc.save(filename);
+  }
 
-  // Save PDF
-  doc.save(filename);
+  return doc;
 }
 
 interface GenerateReceiptAuditPdfOptions {
@@ -268,7 +285,9 @@ export function generateReceiptAuditPdf({
   userName = 'Coordinator',
   filterLabel = 'All Logs',
 }: GenerateReceiptAuditPdfOptions) {
-  const doc = new jsPDF({
+  const JsPDFCtor: typeof jsPDF =
+    typeof jsPDF === 'function' ? jsPDF : ((jsPDF as any).jsPDF || (jsPDF as any).default);
+  const doc = new JsPDFCtor({
     orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
@@ -357,7 +376,7 @@ export function generateReceiptAuditPdf({
       log.edfNumber || 'N/A',
       log.toStatus || 'Unknown',
       log.changedBy || 'System',
-      log.fromStatus ? `${log.fromStatus} → ${log.toStatus}` : log.toStatus,
+      log.fromStatus ? `${log.fromStatus} -> ${log.toStatus}` : log.toStatus,
       dateFormatted,
       log.notes || 'Status updated',
     ];
@@ -427,4 +446,3 @@ export function generateReceiptAuditPdf({
   const dateStr = new Date().toISOString().slice(0, 10);
   doc.save(`EDF_Receipt_Audit_Log_${dateStr}.pdf`);
 }
-

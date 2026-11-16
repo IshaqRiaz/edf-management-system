@@ -5,6 +5,8 @@ import { HighlightText } from './HighlightText.tsx';
 import { ReceivingProgressBar } from './ReceivingProgressBar.tsx';
 import { BarcodeScannerModal } from './BarcodeScannerModal.tsx';
 import { exportEDFsToMultiRowCSV } from '../utils/csvExport.ts';
+import { generateMergedEdfPdf } from '../utils/pdfGenerator.ts';
+import { deduplicateEdfsByNumber } from '../utils/exportHelpers.ts';
 import { useTheme } from '../context/ThemeContext.tsx';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
 import {
@@ -39,6 +41,7 @@ import {
   Loader2,
   Scan,
   FileSpreadsheet,
+  FileDown,
 } from 'lucide-react';
 
 export const isDueWithin24Hours = (requiredDate: string | Date, status?: string): boolean => {
@@ -217,15 +220,16 @@ export const EDFList: React.FC<EDFListProps> = ({
     }
   };
 
-  // Tab counts based on all records (or category if filtered)
+  // Tab counts based on unique EDF Numbers (or category if filtered)
   const tabCounts = useMemo(() => {
     const now = Date.now();
+    const uniqueList = deduplicateEdfsByNumber(edfs);
     let total = 0;
     let pending = 0;
     let received = 0;
     let overdue = 0;
 
-    for (const item of edfs) {
+    for (const item of uniqueList) {
       if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
         continue;
       }
@@ -250,10 +254,11 @@ export const EDFList: React.FC<EDFListProps> = ({
     return { total, pending, received, overdue };
   }, [edfs, selectedCategory]);
 
-  // Retrieve all records for a specific tab (respects category, search, and date filters)
+  // Retrieve unique EDF records for a specific tab (respects category, search, and date filters)
   const getTabRecords = (tab: EdfTabType): EDF[] => {
     const now = Date.now();
-    return edfs.filter((item) => {
+    const uniqueList = deduplicateEdfsByNumber(edfs);
+    return uniqueList.filter((item) => {
       // Category filter
       if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
         return false;
@@ -303,7 +308,7 @@ export const EDFList: React.FC<EDFListProps> = ({
     });
   };
 
-  // Export records belonging to the tab with individual material rows preserved
+  // Export unique EDF records belonging to the tab with individual material rows preserved
   const handleExportTab = (tab: EdfTabType, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const records = getTabRecords(tab);
@@ -311,7 +316,21 @@ export const EDFList: React.FC<EDFListProps> = ({
     const res = exportEDFsToMultiRowCSV(records, `${tab}_EDF`);
     if (res.success) {
       setExportNotice(
-        `Successfully exported ${res.count} ${tab} EDFs (${res.totalRows} individual material rows preserved) to CSV!`
+        `Successfully exported ${res.count} unique ${tab} EDF${res.count === 1 ? '' : 's'} (${res.totalRows} individual material rows grouped) to CSV!`
+      );
+      setTimeout(() => setExportNotice(null), 4500);
+    }
+  };
+
+  // Export unique EDF records belonging to the tab as grouped PDF with vertically merged EDF Number cells
+  const handleExportTabPdf = (tab: EdfTabType, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const records = getTabRecords(tab);
+    if (records.length === 0) return;
+    const res = generateMergedEdfPdf(records, `${tab}_EDF`);
+    if (res.success) {
+      setExportNotice(
+        `Successfully exported ${res.count} unique ${tab} EDF${res.count === 1 ? '' : 's'} (${res.totalRows} material rows grouped) to PDF!`
       );
       setTimeout(() => setExportNotice(null), 4500);
     }
@@ -668,17 +687,27 @@ export const EDFList: React.FC<EDFListProps> = ({
             </div>
           </div>
 
-          {/* Active Tab Direct Export CTA Button */}
+          {/* Active Tab Direct Export CTA Buttons */}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => handleExportTab(activeTab)}
               disabled={getTabRecords(activeTab).length === 0}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 font-extrabold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-40"
-              title={`Download all ${getTabRecords(activeTab).length} records belonging to ${activeTab} tab with separate material rows`}
+              title={`Download all ${getTabRecords(activeTab).length} unique EDFs belonging to ${activeTab} tab to CSV`}
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export {activeTab} EDF CSV ({getTabRecords(activeTab).length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportTabPdf(activeTab)}
+              disabled={getTabRecords(activeTab).length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-xs transition-all cursor-pointer disabled:opacity-40"
+              title={`Download all ${getTabRecords(activeTab).length} unique EDFs belonging to ${activeTab} tab as grouped PDF`}
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Export {activeTab} EDF PDF ({getTabRecords(activeTab).length})</span>
             </button>
           </div>
         </div>
@@ -746,11 +775,21 @@ export const EDFList: React.FC<EDFListProps> = ({
 
             <button
               onClick={() => onExportCSV(filteredEdfs)}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-xs transition-all cursor-pointer"
               title="Export current filtered list to CSV"
             >
               <Download className="w-3.5 h-3.5 text-slate-500" />
               <span>Export CSV</span>
+            </button>
+
+            <button
+              onClick={() => generateMergedEdfPdf(filteredEdfs, `${activeTab}_Filtered`)}
+              disabled={filteredEdfs.length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-rose-200 dark:border-rose-900 hover:border-rose-300 bg-rose-50/70 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-40"
+              title="Export current filtered list to PDF with vertically merged EDF Numbers"
+            >
+              <FileDown className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+              <span>Export PDF</span>
             </button>
 
             <button

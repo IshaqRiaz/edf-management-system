@@ -35,6 +35,7 @@ import {
 } from './utils/offlineStorage.ts';
 import { useOnlineStatus } from './hooks/useOnlineStatus.ts';
 import { OfflineIndicator } from './components/OfflineIndicator.tsx';
+import { exportEDFsToMultiRowCSV } from './utils/csvExport.ts';
 
 const initialStats: DashboardStats = {
   total: 0,
@@ -818,64 +819,22 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  // CSV Export utility
-  const handleExportCSV = (listToExport: EDF[] = edfs) => {
-    if (listToExport.length === 0) {
+  // CSV Export utility (grouped by unique EDF Number with separate material rows)
+  const handleExportCSV = (listToExport: EDF[] = edfs, filterLabel: string = 'All') => {
+    if (!listToExport || listToExport.length === 0) {
       showToast('No records available to export.', 'info');
       return;
     }
 
-    const headers = [
-      'EDF Number',
-      'Requester Name',
-      'Category',
-      'Issue Date',
-      'Required Date',
-      'Status',
-      'Receiving Progress',
-      'Material Summary',
-      'Quantity',
-      'Unit',
-      'Remarks',
-    ];
-
-    const rows = listToExport.map((e) => {
-      const rawItems = e.items || [];
-      const totalCount = e.totalItemsCount ?? (rawItems.length > 0 ? rawItems.length : 1);
-      const receivedCount = e.receivedItemsCount ?? rawItems.filter((i) => i.status === 'Received').length;
-      const receivingProgress =
-        e.status === 'Received' || receivedCount === totalCount
-          ? `${totalCount}/${totalCount} Received`
-          : receivedCount > 0
-          ? `Partial: ${receivedCount}/${totalCount} Received`
-          : `0/${totalCount} Received`;
-
-      return [
-        `"${e.edfNumber}"`,
-        `"${(e.requesterName || '').replace(/"/g, '""')}"`,
-        `"${e.category}"`,
-        `"${new Date(e.issueDate).toLocaleDateString()}"`,
-        `"${new Date(e.requiredDate).toLocaleString()}"`,
-        `"${e.isOverdue ? 'Overdue' : e.status}"`,
-        `"${receivingProgress}"`,
-        `"${(e.materialList || '').replace(/"/g, '""')}"`,
-        e.quantity,
-        `"${e.unit}"`,
-        `"${(e.remarks || '').replace(/"/g, '""')}"`,
-      ];
-    });
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `EDF_Export_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const res = exportEDFsToMultiRowCSV(listToExport, filterLabel);
+    if (res.success) {
+      showToast(
+        `Exported ${res.count} unique EDF${res.count === 1 ? '' : 's'} (${res.totalRows} material row${res.totalRows === 1 ? '' : 's'}) to CSV.`,
+        'success'
+      );
+    } else {
+      showToast('No records available to export.', 'info');
+    }
   };
 
   if (authLoading) {

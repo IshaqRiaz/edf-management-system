@@ -4,34 +4,37 @@ import { useAuth } from '../context/AuthContext.tsx';
 import { generateReportPdf, generateReceiptAuditPdf } from '../utils/reportPdf.ts';
 import { getLocalAuditLogs } from '../utils/offlineStorage.ts';
 import {
+  ExportFilterType,
+  countUniqueEdfStats,
+  filterEdfsForExport,
+  getEdfMaterialRows,
+  getEffectiveEdfState,
+  getExportFilterLabel,
+} from '../utils/exportHelpers.ts';
+import {
   BarChart3,
   Download,
-  Calendar,
   Layers,
   CheckCircle2,
   Printer,
-  PieChart,
-  TrendingUp,
   FileDown,
   Filter,
   PackageCheck,
   Clock,
   AlertOctagon,
-  Sparkles,
-  FileText,
   History,
-  Shield,
-  User,
   Search,
   RefreshCw,
   ArrowRight,
-  ClipboardList,
+  Hash,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 
 interface ReportsProps {
   edfs: EDF[];
   categories: Category[];
-  onExportCSV: (filtered: EDF[]) => void;
+  onExportCSV: (filtered: EDF[], filterLabel?: string) => void;
 }
 
 export const Reports: React.FC<ReportsProps> = ({
@@ -42,10 +45,12 @@ export const Reports: React.FC<ReportsProps> = ({
   const { user } = useAuth();
   const [activeReportTab, setActiveReportTab] = useState<'analytics' | 'audit_logs'>('analytics');
 
-  // Filter states for general analytics
+  // Export & report filter states
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [selectedStatus, setSelectedStatus] = useState<string>('All');
+  const [selectedStatus, setSelectedStatus] = useState<ExportFilterType>('Total');
+  const [specificEdfNumber, setSpecificEdfNumber] = useState<string>('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Status & Delivery Audit Logs State
   const [statusLogs, setStatusLogs] = useState<EDFStatusHistory[]>([]);
@@ -82,36 +87,71 @@ export const Reports: React.FC<ReportsProps> = ({
     fetchStatusLogs();
   }, []);
 
-  // Filtered dataset for reporting
-  const filtered = useMemo(() => {
-    return edfs.filter((item) => {
-      if (selectedCategory !== 'All' && item.category.toLowerCase() !== selectedCategory.toLowerCase()) {
-        return false;
-      }
-      if (selectedStatus !== 'All') {
-        if (selectedStatus === 'Overdue') {
-          const isOverdue = (item.status === 'Overdue' || item.isOverdue) && item.status !== 'Received';
-          if (!isOverdue) return false;
-        } else if (item.status.toLowerCase() !== selectedStatus.toLowerCase()) {
-          return false;
-        }
-      }
-      return true;
+  // Deduplicated, EDF-number-counted, filtered dataset for both CSV & PDF exports
+  const {
+    uniqueAllEdfs,
+    filteredEdfs: filtered,
+    counts: uniqueCounts,
+    totalMaterialItems,
+  } = useMemo(() => {
+    return filterEdfsForExport(edfs, {
+      statusFilter: selectedStatus,
+      categoryFilter: selectedCategory,
+      specificEdfNumber,
     });
-  }, [edfs, selectedCategory, selectedStatus]);
+  }, [edfs, selectedStatus, selectedCategory, specificEdfNumber]);
 
-  const total = edfs.length || 1;
-  const filteredTotal = filtered.length || 1;
-  const receivedCount = filtered.filter((e) => e.status === 'Received').length;
-  const partiallyReceivedCount = filtered.filter((e) => e.status === 'Partially Received').length;
-  const overdueCount = filtered.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Received').length;
-  const pendingCount = filtered.filter((e) => e.status === 'Pending').length;
-  const fulfillmentRate = Math.round((receivedCount / filteredTotal) * 100);
+  const uniqueEdfOptions = useMemo(() => {
+    return uniqueAllEdfs.map((e) => e.edfNumber).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [uniqueAllEdfs]);
+
+  const filteredStats = useMemo(() => countUniqueEdfStats(filtered), [filtered]);
+  const filteredTotal = filteredStats.total || 1;
+  const receivedCount = filteredStats.received;
+  const partiallyReceivedCount = filteredStats.partiallyReceived;
+  const overdueCount = filteredStats.overdue;
+  const pendingCount = filteredStats.pending;
+  const fulfillmentRate = filtered.length > 0 ? Math.round((receivedCount / filteredTotal) * 100) : 0;
+
+  const activeFilterLabel = useMemo(() => {
+    return getExportFilterLabel({
+      statusFilter: selectedStatus,
+      specificEdfNumber,
+    });
+  }, [selectedStatus, specificEdfNumber]);
+
+  const activeFilterDisplay = useMemo(() => {
+    if (selectedStatus === 'Specific') {
+      return specificEdfNumber.trim()
+        ? `Specific EDF Number (${specificEdfNumber.trim()})`
+        : 'Specific EDF Number (All)';
+    }
+    switch (selectedStatus) {
+      case 'Total':
+        return 'Total EDF';
+      case 'Pending':
+        return 'Pending EDF';
+      case 'Partially Received':
+        return 'Partially Received EDF';
+      case 'Received':
+        return 'Received EDF';
+      case 'Overdue':
+        return 'Overdue EDF';
+      default:
+        return 'Total EDF';
+    }
+  }, [selectedStatus, specificEdfNumber]);
+
+  const showFeedback = (type: 'success' | 'error', text: string) => {
+    setExportFeedback({ type, text });
+    setTimeout(() => {
+      setExportFeedback((prev) => (prev?.text === text ? null : prev));
+    }, 4500);
+  };
 
   // Filtered audit logs
   const filteredLogs = useMemo(() => {
     return statusLogs.filter((log) => {
-      // 1. Action filter
       if (logActionFilter !== 'all') {
         const toLower = String(log.toStatus).toLowerCase();
         if (logActionFilter === 'received') {
@@ -124,7 +164,6 @@ export const Reports: React.FC<ReportsProps> = ({
           return false;
         }
       }
-      // 2. Role filter (checks if changedBy string contains '[Admin]' or '[Visitor]')
       if (logRoleFilter !== 'all') {
         const changedByLower = String(log.changedBy || '').toLowerCase();
         if (logRoleFilter === 'admin' && !changedByLower.includes('admin')) {
@@ -134,7 +173,6 @@ export const Reports: React.FC<ReportsProps> = ({
           return false;
         }
       }
-      // 3. Search query
       if (logSearch.trim()) {
         const query = logSearch.toLowerCase().trim();
         const matchesEdf = log.edfNumber.toLowerCase().includes(query);
@@ -150,27 +188,50 @@ export const Reports: React.FC<ReportsProps> = ({
 
   // Handle PDF report generation
   const handleDownloadPdf = () => {
+    if (filtered.length === 0) {
+      showFeedback('error', 'No EDF records match the selected export filter.');
+      return;
+    }
     try {
       setIsGeneratingPdf(true);
       generateReportPdf({
         edfs: filtered,
         categories,
         selectedCategory,
-        selectedStatus,
+        selectedStatus: activeFilterDisplay,
+        specificEdfNumber,
+        filterLabel: activeFilterDisplay,
         userName: user?.name || 'Coordinator',
       });
+      showFeedback(
+        'success',
+        `Downloaded PDF report with ${filtered.length} unique EDF${filtered.length === 1 ? '' : 's'} (${totalMaterialItems} material item${totalMaterialItems === 1 ? '' : 's'}).`
+      );
     } catch (err) {
       console.error('Failed to generate PDF:', err);
-      alert('Failed to generate report PDF. Please try again.');
+      showFeedback('error', 'Failed to generate report PDF. Please try again.');
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
+  // Handle CSV report export
+  const handleDownloadCsv = () => {
+    if (filtered.length === 0) {
+      showFeedback('error', 'No EDF records match the selected export filter.');
+      return;
+    }
+    onExportCSV(filtered, activeFilterLabel);
+    showFeedback(
+      'success',
+      `Exported CSV with ${filtered.length} unique EDF${filtered.length === 1 ? '' : 's'} (${totalMaterialItems} material item${totalMaterialItems === 1 ? '' : 's'}).`
+    );
+  };
+
   // Export Receipt & Status History to CSV
   const handleExportReceiptLogsCSV = () => {
     if (filteredLogs.length === 0) {
-      alert('No audit logs available to export.');
+      showFeedback('error', 'No audit logs available to export.');
       return;
     }
 
@@ -206,6 +267,7 @@ export const Reports: React.FC<ReportsProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Export Receipt & Status History to PDF
@@ -218,9 +280,60 @@ export const Reports: React.FC<ReportsProps> = ({
       });
     } catch (err) {
       console.error('Failed to export audit PDF:', err);
-      alert('Failed to generate Receipt Audit PDF.');
+      showFeedback('error', 'Failed to generate Receipt Audit PDF.');
     }
   };
+
+  const exportFilterTabs: {
+    key: ExportFilterType;
+    label: string;
+    count: number;
+    activeClass: string;
+    badgeClass: string;
+  }[] = [
+    {
+      key: 'Total',
+      label: 'Total EDF',
+      count: uniqueCounts.total,
+      activeClass: 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm',
+      badgeClass: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200',
+    },
+    {
+      key: 'Pending',
+      label: 'Pending EDF',
+      count: uniqueCounts.pending,
+      activeClass: 'bg-amber-600 text-white shadow-sm',
+      badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+    },
+    {
+      key: 'Partially Received',
+      label: 'Partially Received EDF',
+      count: uniqueCounts.partiallyReceived,
+      activeClass: 'bg-sky-600 text-white shadow-sm',
+      badgeClass: 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300',
+    },
+    {
+      key: 'Received',
+      label: 'Received EDF',
+      count: uniqueCounts.received,
+      activeClass: 'bg-emerald-600 text-white shadow-sm',
+      badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+    },
+    {
+      key: 'Overdue',
+      label: 'Overdue EDF',
+      count: uniqueCounts.overdue,
+      activeClass: 'bg-rose-600 text-white shadow-sm',
+      badgeClass: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
+    },
+    {
+      key: 'Specific',
+      label: 'Specific EDF Number',
+      count: specificEdfNumber.trim() ? filtered.length : uniqueCounts.total,
+      activeClass: 'bg-indigo-600 text-white shadow-sm',
+      badgeClass: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300',
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -233,14 +346,14 @@ export const Reports: React.FC<ReportsProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                Reports & Demand Analytics
+                Reports & Export Center
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
-                Audit Trail Ready
+                Unique EDF Grouping
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Department fulfillment rates, real-time receipt logs, visitor/admin tracking, and formal PDF/CSV exports.
+              Filter by status or specific EDF number, preview grouped material rows, and export consistent PDF & CSV reports.
             </p>
           </div>
         </div>
@@ -249,15 +362,14 @@ export const Reports: React.FC<ReportsProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           {activeReportTab === 'analytics' ? (
             <>
-              {/* DOWNLOAD REPORT PDF BUTTON */}
               <button
                 onClick={handleDownloadPdf}
-                disabled={isGeneratingPdf}
+                disabled={isGeneratingPdf || filtered.length === 0}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md shadow-rose-600/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-                title="Generate and download formatted PDF report of current filtered EDF records"
+                title="Generate and download formatted PDF report of filtered unique EDF records"
               >
                 <FileDown className={`w-4 h-4 ${isGeneratingPdf ? 'animate-bounce' : ''}`} />
-                <span>{isGeneratingPdf ? 'Generating PDF...' : 'Download Report PDF'}</span>
+                <span>{isGeneratingPdf ? 'Generating PDF...' : `Download Report PDF (${filtered.length})`}</span>
               </button>
 
               <button
@@ -270,17 +382,17 @@ export const Reports: React.FC<ReportsProps> = ({
               </button>
 
               <button
-                onClick={() => onExportCSV(filtered)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
-                title="Export filtered records as CSV"
+                onClick={handleDownloadCsv}
+                disabled={filtered.length === 0}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                title="Export filtered unique EDF records as grouped CSV"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Export CSV</span>
+                <span>Export CSV ({filtered.length})</span>
               </button>
             </>
           ) : (
             <>
-              {/* AUDIT LOG SPECIFIC ACTIONS */}
               <button
                 onClick={handleExportReceiptLogsPDF}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs shadow-md shadow-rose-600/25 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer"
@@ -311,6 +423,33 @@ export const Reports: React.FC<ReportsProps> = ({
           )}
         </div>
       </div>
+
+      {/* Inline Feedback Notice */}
+      {exportFeedback && (
+        <div
+          className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-between gap-2 ${
+            exportFeedback.type === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+              : 'bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {exportFeedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            )}
+            <span>{exportFeedback.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setExportFeedback(null)}
+            className="p-1 opacity-70 hover:opacity-100 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Mode Switcher Tabs */}
       <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 w-fit">
@@ -347,70 +486,184 @@ export const Reports: React.FC<ReportsProps> = ({
       {/* ========================================================================= */}
       {activeReportTab === 'analytics' && (
         <div className="space-y-6">
-          {/* Interactive Filters Bar */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 mr-1">
-                <Filter className="w-3.5 h-3.5 text-rose-500" />
-                <span>Filter Report:</span>
+          {/* Export Filters & EDF-Number-Based Counting Bar */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs font-black text-slate-800 dark:text-slate-100">
+                <Filter className="w-4 h-4 text-rose-500" />
+                <span>Export Filters (Counted by Unique EDF Number)</span>
               </div>
 
-              {/* Category Dropdown */}
-              <div className="flex items-center gap-1.5 text-xs">
-                <label htmlFor="report-category" className="text-slate-500 font-semibold">Category:</label>
-                <select
-                  id="report-category"
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
-                >
-                  <option value="All">All Categories</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.name}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
+              {/* Pre-Export Unique EDF Count Summary */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 font-bold">
+                  Matching Unique EDFs:{' '}
+                  <span className="font-mono text-sm font-black">{filtered.length}</span>
+                  <span className="text-rose-500/80 dark:text-rose-400/80 font-semibold ml-1.5">
+                    of {uniqueCounts.total} unique EDF{uniqueCounts.total === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold">
+                  Material Items:{' '}
+                  <span className="font-mono font-black">{totalMaterialItems}</span>
+                </div>
               </div>
-
-              {/* Status Dropdown */}
-              <div className="flex items-center gap-1.5 text-xs">
-                <label htmlFor="report-status" className="text-slate-500 font-semibold">Status:</label>
-                <select
-                  id="report-status"
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Partially Received">Partially Received</option>
-                  <option value="Received">Received</option>
-                  <option value="Overdue">Overdue Only</option>
-                </select>
-              </div>
-
-              {/* Reset Filters */}
-              {(selectedCategory !== 'All' || selectedStatus !== 'All') && (
-                <button
-                  onClick={() => {
-                    setSelectedCategory('All');
-                    setSelectedStatus('All');
-                  }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                >
-                  Reset Filters
-                </button>
-              )}
             </div>
 
-            {/* Filtered Count Badge */}
-            <div className="text-xs font-bold text-slate-600 dark:text-slate-400">
-              Showing <span className="font-mono text-rose-600 dark:text-rose-400 font-extrabold">{filtered.length}</span> of {edfs.length} Demand Forms in current report
+            {/* 6 Export Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              {exportFilterTabs.map((tab) => {
+                const isActive = selectedStatus === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedStatus(tab.key);
+                      if (tab.key !== 'Specific' && specificEdfNumber) {
+                        setSpecificEdfNumber('');
+                      }
+                    }}
+                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                      isActive
+                        ? `${tab.activeClass} border-transparent`
+                        : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded-md font-mono text-[11px] font-black ${
+                        isActive ? 'bg-white/20 text-white' : tab.badgeClass
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Category + Specific EDF Number Controls */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Category Dropdown */}
+                <div className="flex items-center gap-1.5 text-xs">
+                  <label htmlFor="report-category" className="text-slate-500 font-semibold">
+                    Category:
+                  </label>
+                  <select
+                    id="report-category"
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
+                  >
+                    <option value="All">All Categories</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.name}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Specific EDF Number Selector & Input */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <label htmlFor="specific-edf-input" className="text-slate-500 font-semibold flex items-center gap-1">
+                    <Hash className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Specific EDF Number:</span>
+                  </label>
+
+                  <div className="relative flex items-center">
+                    <input
+                      id="specific-edf-input"
+                      type="text"
+                      list="export-edf-number-options"
+                      value={specificEdfNumber}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSpecificEdfNumber(val);
+                        if (val.trim()) {
+                          setSelectedStatus('Specific');
+                        }
+                      }}
+                      placeholder="Type or select EDF # (e.g. 3265)"
+                      className="pl-3 pr-7 py-1.5 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-mono font-bold text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                    <datalist id="export-edf-number-options">
+                      {uniqueEdfOptions.map((num) => (
+                        <option key={num} value={num} />
+                      ))}
+                    </datalist>
+                    {specificEdfNumber && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSpecificEdfNumber('');
+                          if (selectedStatus === 'Specific') {
+                            setSelectedStatus('Total');
+                          }
+                        }}
+                        className="absolute right-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                        title="Clear specific EDF number"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {uniqueEdfOptions.length > 0 && (
+                    <select
+                      aria-label="Pick existing EDF Number"
+                      value={
+                        uniqueEdfOptions.some(
+                          (opt) => opt.toLowerCase() === specificEdfNumber.trim().toLowerCase()
+                        )
+                          ? specificEdfNumber.trim()
+                          : ''
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSpecificEdfNumber(val);
+                        setSelectedStatus(val ? 'Specific' : 'Total');
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono font-bold text-xs focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                    >
+                      <option value="">Quick Pick EDF #...</option>
+                      {uniqueEdfOptions.map((num) => (
+                        <option key={num} value={num}>
+                          {num}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Reset Filters */}
+                {(selectedCategory !== 'All' || selectedStatus !== 'Total' || specificEdfNumber.trim() !== '') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory('All');
+                      setSelectedStatus('Total');
+                      setSpecificEdfNumber('');
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                Active scope: <strong className="text-slate-800 dark:text-slate-200">{activeFilterDisplay}</strong>
+                {selectedCategory !== 'All' && (
+                  <span> • Category: <strong className="text-slate-800 dark:text-slate-200">{selectedCategory}</strong></span>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* KPI Cards */}
+          {/* KPI Cards (Strictly Unique EDF Counts) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-[11px] font-black tracking-wider text-slate-400 mb-1">
@@ -420,7 +673,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
                   {fulfillmentRate}%
                 </span>
-                <span className="text-xs text-slate-400 font-medium">of filtered requests</span>
+                <span className="text-xs text-slate-400 font-medium">of {filtered.length} unique EDF{filtered.length === 1 ? '' : 's'}</span>
               </div>
               <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full mt-3 overflow-hidden">
                 <div
@@ -432,7 +685,7 @@ export const Reports: React.FC<ReportsProps> = ({
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-[11px] font-black tracking-wider text-slate-400 mb-1">
-                Partially Received
+                Partially Received EDF
               </p>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-sky-600 dark:text-sky-400">
@@ -445,20 +698,20 @@ export const Reports: React.FC<ReportsProps> = ({
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-[11px] font-black tracking-wider text-slate-400 mb-1">
-                Fully Received
+                Received EDF
               </p>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
                   {receivedCount}
                 </span>
-                <span className="text-xs text-slate-400 font-medium">{pendingCount} Pending</span>
+                <span className="text-xs text-slate-400 font-medium">{pendingCount} Pending EDF</span>
               </div>
               <p className="text-[11px] text-slate-400 mt-2 font-medium">All material items verified & in stock</p>
             </div>
 
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-[11px] font-black tracking-wider text-rose-500 mb-1">
-                Overdue Demands
+                Overdue EDF
               </p>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-black text-rose-600">
@@ -470,11 +723,11 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
           </div>
 
-          {/* Category Breakdown Table */}
+          {/* Category Breakdown Table (Unique EDF Count) */}
           <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
-                Departmental Demand Breakdown
+                Departmental Demand Breakdown (Unique EDF Numbers)
               </h3>
               <span className="text-xs text-slate-400">Filtered distribution</span>
             </div>
@@ -484,7 +737,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px]">
                     <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4 text-center">Total Demands</th>
+                    <th className="py-3 px-4 text-center">Unique EDFs</th>
                     <th className="py-3 px-4 text-center">Received</th>
                     <th className="py-3 px-4 text-center">Partially Received</th>
                     <th className="py-3 px-4 text-center">Pending</th>
@@ -495,14 +748,10 @@ export const Reports: React.FC<ReportsProps> = ({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {categories.map((cat) => {
                     const catEdfs = filtered.filter(
-                      (e) => e.category.toLowerCase() === cat.name.toLowerCase()
+                      (e) => String(e.category || '').toLowerCase() === cat.name.toLowerCase()
                     );
-                    const count = catEdfs.length;
-                    const received = catEdfs.filter((e) => e.status === 'Received').length;
-                    const partiallyReceived = catEdfs.filter((e) => e.status === 'Partially Received').length;
-                    const overdue = catEdfs.filter((e) => (e.status === 'Overdue' || e.isOverdue) && e.status !== 'Received').length;
-                    const pending = catEdfs.filter((e) => e.status === 'Pending' && !e.isOverdue).length;
-                    const share = filteredTotal > 0 ? Math.round((count / filteredTotal) * 100) : 0;
+                    const catStats = countUniqueEdfStats(catEdfs);
+                    const share = filtered.length > 0 ? Math.round((catStats.total / filteredTotal) * 100) : 0;
 
                     return (
                       <tr key={cat.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
@@ -510,19 +759,19 @@ export const Reports: React.FC<ReportsProps> = ({
                           {cat.name}
                         </td>
                         <td className="py-2.5 px-4 text-center font-bold font-mono text-slate-900 dark:text-white">
-                          {count}
+                          {catStats.total}
                         </td>
                         <td className="py-2.5 px-4 text-center font-semibold text-emerald-600">
-                          {received}
+                          {catStats.received}
                         </td>
                         <td className="py-2.5 px-4 text-center font-semibold text-sky-600">
-                          {partiallyReceived}
+                          {catStats.partiallyReceived}
                         </td>
                         <td className="py-2.5 px-4 text-center font-semibold text-amber-600">
-                          {pending}
+                          {catStats.pending}
                         </td>
                         <td className="py-2.5 px-4 text-center font-bold text-rose-600">
-                          {overdue}
+                          {catStats.overdue}
                         </td>
                         <td className="py-2.5 px-4 text-right font-mono text-slate-400">
                           {share}%
@@ -535,94 +784,151 @@ export const Reports: React.FC<ReportsProps> = ({
             </div>
           </div>
 
-          {/* Filtered EDF Records Preview */}
+          {/* Grouped Export Preview Table (Vertically Merged EDF Number cell across material rows) */}
           <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-wider">
-                  Filtered Records in PDF Report
+                  Export Preview (Grouped by Unique EDF Number)
                 </h3>
-                <span className="font-mono text-xs font-bold text-slate-400">
-                  ({filtered.length} entries)
+                <span className="px-2 py-0.5 rounded-full font-mono text-[11px] font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
+                  {filtered.length} Unique EDF{filtered.length === 1 ? '' : 's'} • {totalMaterialItems} Material Item{totalMaterialItems === 1 ? '' : 's'}
                 </span>
               </div>
 
-              <button
-                onClick={handleDownloadPdf}
-                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
-              >
-                <FileDown className="w-3.5 h-3.5" />
-                <span>Export to PDF</span>
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleDownloadCsv}
+                  disabled={filtered.length === 0}
+                  className="flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-slate-200 hover:underline cursor-pointer disabled:opacity-40"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={filtered.length === 0}
+                  className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer disabled:opacity-40"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  <span>Export PDF</span>
+                </button>
+              </div>
             </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[360px] overflow-y-auto">
-              <table className="w-full text-left text-xs">
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-x-auto max-h-[420px] overflow-y-auto">
+              <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px] sticky top-0 z-10">
-                    <th className="py-2.5 px-4">EDF #</th>
-                    <th className="py-2.5 px-4">Requester</th>
-                    <th className="py-2.5 px-4">Category</th>
-                    <th className="py-2.5 px-4">Issue Date</th>
-                    <th className="py-2.5 px-4">Required Date</th>
-                    <th className="py-2.5 px-4">Material Summary</th>
-                    <th className="py-2.5 px-4 text-center">Status</th>
+                  <tr className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-bold text-[11px] sticky top-0 z-10">
+                    <th className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800">EDF #</th>
+                    <th className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800">Requester & Dept</th>
+                    <th className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800 text-center">Dates</th>
+                    <th className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800">Material Item</th>
+                    <th className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800 text-center">Qty / Unit</th>
+                    <th className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-800 text-center">Item Status</th>
+                    <th className="py-2.5 px-3 text-center">EDF Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {filtered.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-slate-400 font-semibold">
-                        No EDF records match the selected category and status filters.
+                        No EDF records match the selected export filters.
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((item) => {
-                      const isOverdue = (item.status === 'Overdue' || item.isOverdue) && item.status !== 'Received';
-                      return (
-                        <tr
-                          key={item.id}
-                          className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/40 ${
-                            isOverdue ? 'bg-rose-50/30 dark:bg-rose-950/20' : ''
-                          }`}
-                        >
-                          <td className="py-2.5 px-4 font-mono font-bold text-slate-900 dark:text-white">
-                            {item.edfNumber}
-                          </td>
-                          <td className="py-2.5 px-4 font-medium text-slate-700 dark:text-slate-300">
-                            {item.requesterName}
-                          </td>
-                          <td className="py-2.5 px-4">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                              {item.category}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-500 font-mono text-[11px]">
-                            {new Date(item.issueDate).toLocaleDateString()}
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-700 dark:text-slate-300 font-medium font-mono text-[11px]">
-                            {new Date(item.requiredDate).toLocaleDateString()}
-                          </td>
-                          <td className="py-2.5 px-4 text-slate-600 dark:text-slate-300 max-w-xs truncate">
-                            {item.materialList} ({item.quantity} {item.unit})
-                          </td>
-                          <td className="py-2.5 px-4 text-center">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
-                                isOverdue
-                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
-                                  : item.status === 'Received'
-                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                                  : item.status === 'Partially Received'
-                                  ? 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
-                                  : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                              }`}
-                            >
-                              {isOverdue ? 'Overdue' : item.status}
-                            </span>
-                          </td>
-                        </tr>
-                      );
+                    filtered.map((edf, edfIdx) => {
+                      const materials = getEdfMaterialRows(edf);
+                      const state = getEffectiveEdfState(edf);
+                      const rowGroupClass =
+                        edfIdx % 2 === 0
+                          ? 'bg-white dark:bg-slate-900'
+                          : 'bg-slate-50/70 dark:bg-slate-800/30';
+
+                      return materials.map((mat, matIdx) => {
+                        const isFirst = matIdx === 0;
+                        return (
+                          <tr
+                            key={`${edf.id}-${edf.edfNumber}-${matIdx}`}
+                            className={`${rowGroupClass} hover:bg-rose-50/30 dark:hover:bg-rose-950/20`}
+                          >
+                            {isFirst && (
+                              <td
+                                rowSpan={materials.length}
+                                className="py-2.5 px-3 font-mono font-black text-slate-900 dark:text-white align-middle border-r border-slate-200 dark:border-slate-800 whitespace-nowrap"
+                              >
+                                <div>{edf.edfNumber}</div>
+                                <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                                  {materials.length} item{materials.length === 1 ? '' : 's'}
+                                </div>
+                              </td>
+                            )}
+                            {isFirst && (
+                              <td
+                                rowSpan={materials.length}
+                                className="py-2.5 px-3 align-middle border-r border-slate-200 dark:border-slate-800"
+                              >
+                                <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                  {edf.requesterName}
+                                </div>
+                                <span className="inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                  {edf.category}
+                                </span>
+                              </td>
+                            )}
+                            {isFirst && (
+                              <td
+                                rowSpan={materials.length}
+                                className="py-2.5 px-3 text-center font-mono text-[11px] text-slate-500 align-middle border-r border-slate-200 dark:border-slate-800 whitespace-nowrap"
+                              >
+                                <div>Iss: {new Date(edf.issueDate).toLocaleDateString()}</div>
+                                <div className="text-slate-700 dark:text-slate-300 font-semibold mt-0.5">
+                                  Req: {new Date(edf.requiredDate).toLocaleDateString()}
+                                </div>
+                              </td>
+                            )}
+                            <td className="py-2 px-3 text-slate-700 dark:text-slate-200 font-medium border-r border-slate-200 dark:border-slate-800">
+                              {mat.itemDescription}
+                            </td>
+                            <td className="py-2 px-3 text-center font-mono font-bold text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
+                              {mat.quantity} {mat.unit}
+                            </td>
+                            <td className="py-2 px-3 text-center border-r border-slate-200 dark:border-slate-800 whitespace-nowrap">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  mat.status === 'Received'
+                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                }`}
+                              >
+                                {mat.status}
+                              </span>
+                            </td>
+                            {isFirst && (
+                              <td
+                                rowSpan={materials.length}
+                                className="py-2.5 px-3 text-center align-middle whitespace-nowrap"
+                              >
+                                <span
+                                  className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
+                                    state.effectiveStatus === 'Overdue'
+                                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                                      : state.effectiveStatus === 'Received'
+                                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                      : state.effectiveStatus === 'Partially Received'
+                                      ? 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
+                                      : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                  }`}
+                                >
+                                  {state.effectiveStatus}
+                                </span>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      });
                     })
                   )}
                 </tbody>
