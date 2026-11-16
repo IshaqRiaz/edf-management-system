@@ -1287,40 +1287,40 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* ========================================================================= */}
       <div
         data-testid="monthly-trend-chart-card"
-        className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4 w-full min-w-0"
+        className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2.5 w-full min-w-0"
       >
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-start sm:items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/60 shrink-0">
-              <TrendingUp className="w-4 h-4" />
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-900/60 shrink-0">
+              <TrendingUp className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white tracking-tight">
                 Monthly EDF Trend: Submitted vs. Completed
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Unique EDF volume submitted compared against completed (received) records over the last {monthlyRangeMonths} months
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Submitted vs. completed (received) unique EDFs over the last {monthlyRangeMonths} months
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto min-w-0">
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto min-w-0">
             {/* Tabular Summary Strip */}
-            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300 pr-0 sm:pr-2 border-r-0 sm:border-r border-slate-200 dark:border-slate-800">
+            <div className="flex flex-wrap items-center gap-2.5 text-[11px] text-slate-600 dark:text-slate-300 pr-0 sm:pr-2 border-r-0 sm:border-r border-slate-200 dark:border-slate-800">
               <div>
-                <span className="text-[11px] text-slate-400 block leading-tight">Submitted</span>
+                <span className="text-[10px] text-slate-400 block leading-tight">Submitted</span>
                 <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">
                   {monthlyTrend.totalSubmitted}
                 </span>
               </div>
               <div>
-                <span className="text-[11px] text-slate-400 block leading-tight">Completed</span>
+                <span className="text-[10px] text-slate-400 block leading-tight">Completed</span>
                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                   {monthlyTrend.totalCompleted}
                 </span>
               </div>
               <div>
-                <span className="text-[11px] text-slate-400 block leading-tight">Fulfillment</span>
+                <span className="text-[10px] text-slate-400 block leading-tight">Fulfillment</span>
                 <span className="font-mono font-bold text-slate-900 dark:text-white tabular-nums">
                   {monthlyTrend.overallCompletionRate}%
                 </span>
@@ -1328,7 +1328,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Series Toggle Buttons */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => {
@@ -1336,13 +1336,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   setShowSubmittedSeries((v) => !v);
                 }}
                 aria-pressed={showSubmittedSeries}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                className={`px-2 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                   showSubmittedSeries
                     ? 'bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
                     : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${showSubmittedSeries ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${showSubmittedSeries ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
                 <span>Submitted</span>
               </button>
               <button
@@ -1352,23 +1352,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   setShowCompletedSeries((v) => !v);
                 }}
                 aria-pressed={showCompletedSeries}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                className={`px-2 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                   showCompletedSeries
                     ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
                     : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400'
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${showCompletedSeries ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${showCompletedSeries ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
                 <span>Completed</span>
               </button>
             </div>
 
             {/* 6M / 12M Segmented Control */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg shrink-0">
+            <div className="flex items-center gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg shrink-0">
               <button
                 type="button"
                 onClick={() => setMonthlyRangeMonths(6)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                className={`px-2 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                   monthlyRangeMonths === 6
                     ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -1379,7 +1379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setMonthlyRangeMonths(12)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                className={`px-2 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap ${
                   monthlyRangeMonths === 12
                     ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -1391,12 +1391,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Recharts Multi-Series Line Chart */}
-        <div className="w-full min-w-0 overflow-hidden h-60 sm:h-64 pt-1">
+        {/* Recharts Multi-Series Line Chart (Compact Height) */}
+        <div className="w-full min-w-0 overflow-hidden h-40 sm:h-44 pt-0.5">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={monthlyTrend.data}
-              margin={{ top: 10, right: 16, left: -16, bottom: 4 }}
+              margin={{ top: 6, right: 12, left: -22, bottom: 0 }}
             >
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -1408,23 +1408,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 dataKey="monthLabel"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 11, fill: '#94a3b8', fontWeight: 600 }}
-                dy={6}
+                tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+                dy={4}
               />
               <YAxis
                 allowDecimals={false}
                 tickLine={false}
                 axisLine={false}
-                tick={{ fontSize: 11, fill: '#94a3b8', fontFamily: 'monospace' }}
+                tick={{ fontSize: 10, fill: '#94a3b8', fontFamily: 'monospace' }}
                 dx={-4}
               />
               <Tooltip content={<MonthlyTrendTooltip />} />
               <Legend
                 verticalAlign="top"
                 align="right"
-                height={28}
+                height={22}
                 iconType="circle"
-                wrapperStyle={{ fontSize: '12px', fontWeight: 600 }}
+                wrapperStyle={{ fontSize: '11px', fontWeight: 600 }}
               />
               {showSubmittedSeries && (
                 <Line
@@ -1432,9 +1432,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   dataKey="submitted"
                   name="Submitted EDFs"
                   stroke="#6366f1"
-                  strokeWidth={2.5}
-                  dot={{ r: 3.5, fill: '#6366f1', strokeWidth: 2, stroke: '#ffffff' }}
-                  activeDot={{ r: 5.5, fill: '#6366f1', stroke: '#ffffff', strokeWidth: 2 }}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: '#6366f1', strokeWidth: 1.5, stroke: '#ffffff' }}
+                  activeDot={{ r: 4.5, fill: '#6366f1', stroke: '#ffffff', strokeWidth: 2 }}
                 />
               )}
               {showCompletedSeries && (
@@ -1443,9 +1443,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   dataKey="completed"
                   name="Completed EDFs"
                   stroke="#10b981"
-                  strokeWidth={2.5}
-                  dot={{ r: 3.5, fill: '#10b981', strokeWidth: 2, stroke: '#ffffff' }}
-                  activeDot={{ r: 5.5, fill: '#10b981', stroke: '#ffffff', strokeWidth: 2 }}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: '#10b981', strokeWidth: 1.5, stroke: '#ffffff' }}
+                  activeDot={{ r: 4.5, fill: '#10b981', stroke: '#ffffff', strokeWidth: 2 }}
                 />
               )}
             </LineChart>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { useTheme, COLOR_THEMES } from '../context/ThemeContext.tsx';
+import { useTheme } from '../context/ThemeContext.tsx';
 import { EDF } from '../types.ts';
 import { calculateLiveTimer } from '../utils/timer.ts';
 import { getCategoryBadgeClass } from '../utils/categoryColors.ts';
@@ -20,8 +20,6 @@ import {
   Sparkles,
   ChevronDown,
   AlertCircle,
-  Palette,
-  Check,
   Bell,
   Clock,
   AlertTriangle,
@@ -81,9 +79,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSyncNow,
 }) => {
   const { user, logout, isAdmin } = useAuth();
-  const { theme, toggleTheme, accent, setAccent } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showPaletteMenu, setShowPaletteMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
   // Global EDF search state
@@ -125,12 +122,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       return [];
     }
   });
-
-  const accentOptions = COLOR_THEMES.map((opt) => ({
-    id: opt.id,
-    label: opt.id === 'grapefruit' ? `${opt.label} (Default)` : opt.label,
-    bg: opt.swatchClass,
-  }));
 
   // Calculate live overdue count and due within 24 hours for live watch card
   const liveStats = useMemo(() => {
@@ -398,7 +389,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (isCmdK || isSlash) {
         e.preventDefault();
         setShowNotifications(false);
-        setShowPaletteMenu(false);
         setShowProfileMenu(false);
         setIsSearchOpen(true);
 
@@ -815,7 +805,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               onFocus={() => {
                 setIsSearchOpen(true);
                 setShowNotifications(false);
-                setShowPaletteMenu(false);
                 setShowProfileMenu(false);
               }}
               onChange={(e) => {
@@ -852,7 +841,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {renderSearchDropdown()}
         </div>
 
-        {/* Right side: Mobile Search Trigger, Live Delivery Watch, Notifications, Theme Toggle, Palette, Profile */}
+        {/* Right side: Mobile Search Trigger, Live Delivery Watch, Notifications, Theme Toggle, Profile */}
         <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
           {/* Mobile Global Search Toggle */}
           <button
@@ -862,7 +851,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               setIsMobileSearchOpen(next);
               setIsSearchOpen(next);
               setShowNotifications(false);
-              setShowPaletteMenu(false);
               setShowProfileMenu(false);
               if (next) {
                 requestAnimationFrame(() => mobileInputRef.current?.focus());
@@ -932,7 +920,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => {
                 setShowNotifications(!showNotifications);
-                setShowPaletteMenu(false);
                 setShowProfileMenu(false);
               }}
               className={`relative p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer ${
@@ -1128,61 +1115,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Color Palette Switcher (hidden on <sm to prevent mobile topbar crowding; accessible in Settings -> Color Theme) */}
-          <div className="relative hidden sm:block">
-            <button
-              onClick={() => {
-                setShowPaletteMenu(!showPaletteMenu);
-                setShowProfileMenu(false);
-                setShowNotifications(false);
-              }}
-              className="p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Change theme accent color"
-              aria-label="Change color theme"
-            >
-              <Palette className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-              <span className="hidden xl:inline text-xs font-bold capitalize text-slate-700 dark:text-slate-300">
-                Theme
-              </span>
-            </button>
-
-            {showPaletteMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowPaletteMenu(false)}
-                />
-                <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 p-2">
-                  <div className="px-3 py-1.5 text-[11px] font-black tracking-wider text-rose-500">
-                    Grapefruit Palette
-                  </div>
-                  <div className="space-y-1">
-                    {accentOptions.map((opt) => (
-                      <button
-                        key={opt.id}
-                        onClick={() => {
-                          setAccent(opt.id);
-                          setShowPaletteMenu(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold rounded-xl transition-colors cursor-pointer ${
-                          accent === opt.id
-                            ? 'bg-rose-50 dark:bg-slate-800 text-rose-700 dark:text-rose-300'
-                            : 'text-slate-700 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className={`w-3.5 h-3.5 rounded-full ${opt.bg} shadow-xs`} />
-                          <span>{opt.label}</span>
-                        </div>
-                        {accent === opt.id && <Check className="w-3.5 h-3.5 text-rose-600" />}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
           {/* DAY AND NIGHT TOGGLE BUTTON - High-contrast Grapefruit theme for crystal-clear readability */}
           <button
             id="theme-toggle-btn"
@@ -1217,7 +1149,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => {
                 setShowProfileMenu(!showProfileMenu);
-                setShowPaletteMenu(false);
                 setShowNotifications(false);
               }}
               className="flex items-center gap-1 sm:gap-2 pl-1.5 pr-1.5 sm:pl-2 sm:pr-2.5 py-1 sm:py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-700 bg-slate-50/50 dark:bg-slate-900 transition-all text-left cursor-pointer"
